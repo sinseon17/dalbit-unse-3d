@@ -135,7 +135,7 @@ const sky = new THREE.Mesh(
 scene.add(sky);
 
 const moon = new THREE.Group();
-moon.position.set(-13, 26, -118);
+moon.position.set(-13, 33, -118);
 const moonBody = new THREE.Mesh(
   new THREE.SphereGeometry(6.5, 32, 24),
   new THREE.MeshBasicMaterial({ color: 0xfff6dd, fog: false })
