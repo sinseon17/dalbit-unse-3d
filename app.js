@@ -135,9 +135,9 @@ const sky = new THREE.Mesh(
 scene.add(sky);
 
 const moon = new THREE.Group();
-moon.position.set(-13, 33, -118);
+moon.position.set(-13, 28, -118);
 const moonBody = new THREE.Mesh(
-  new THREE.SphereGeometry(6.5, 32, 24),
+  new THREE.SphereGeometry(4.6, 32, 24),
   new THREE.MeshBasicMaterial({ color: 0xfff6dd, fog: false })
 );
 moon.add(moonBody);
@@ -145,7 +145,7 @@ const moonHalo = new THREE.Sprite(new THREE.SpriteMaterial({
   map: glowTex, color: 0xffe9b8, transparent: true, opacity: 0.85,
   blending: THREE.AdditiveBlending, depthWrite: false, fog: false
 }));
-moonHalo.scale.set(16, 16, 1);
+moonHalo.scale.set(12, 12, 1);
 moon.add(moonHalo);
 scene.add(moon);
 
