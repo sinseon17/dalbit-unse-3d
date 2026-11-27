@@ -203,23 +203,23 @@ scene.add(ground);
 
 /* ---------- 돌길 ---------- */
 const PATH_POINTS = [
-  new THREE.Vector3(0, 0, 12.5),
-  new THREE.Vector3(-6.2, 0, 9.6),
-  new THREE.Vector3(-9.8, 0, 3.2),
-  new THREE.Vector3(-8.4, 0, -3.6),
-  new THREE.Vector3(-3.2, 0, -7.9),
-  new THREE.Vector3(3.2, 0, -7.9),
-  new THREE.Vector3(8.4, 0, -3.6),
-  new THREE.Vector3(9.8, 0, 3.2),
-  new THREE.Vector3(6.2, 0, 9.6),
+  new THREE.Vector3(0, 0, 9.6),
+  new THREE.Vector3(-4.9, 0, 7.4),
+  new THREE.Vector3(-7.7, 0, 2.5),
+  new THREE.Vector3(-6.6, 0, -2.8),
+  new THREE.Vector3(-2.5, 0, -6.2),
+  new THREE.Vector3(2.5, 0, -6.2),
+  new THREE.Vector3(6.6, 0, -2.8),
+  new THREE.Vector3(7.7, 0, 2.5),
+  new THREE.Vector3(4.9, 0, 7.4),
 ];
 const pathCurve = new THREE.CatmullRomCurve3(PATH_POINTS, true, 'catmullrom', 0.5);
 const pathLength = pathCurve.getLength();
 
 {
-  const count = Math.floor(pathLength / 1.05);
-  const slabGeo = new THREE.BoxGeometry(1.42, 0.09, 1.05);
-  const slabMat = new THREE.MeshStandardMaterial({ color: 0x484e5c, roughness: 0.95, metalness: 0.02 });
+  const count = Math.floor(pathLength / 0.92);
+  const slabGeo = new THREE.BoxGeometry(1.12, 0.07, 0.86);
+  const slabMat = new THREE.MeshStandardMaterial({ color: 0x3f4550, roughness: 0.95, metalness: 0.02 });
   const slabs = new THREE.InstancedMesh(slabGeo, slabMat, count);
   slabs.castShadow = false; slabs.receiveShadow = true;
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3();
@@ -227,7 +227,7 @@ const pathLength = pathCurve.getLength();
     const t = i / count;
     const pt = pathCurve.getPointAt(t);
     const tan = pathCurve.getTangentAt(t);
-    p.set(pt.x + rand(-0.06, 0.06), 0.045 + rand(-0.012, 0.012), pt.z + rand(-0.06, 0.06));
+    p.set(pt.x + rand(-0.05, 0.05), 0.035 + rand(-0.008, 0.008), pt.z + rand(-0.05, 0.05));
     q.setFromEuler(new THREE.Euler(0, Math.atan2(tan.x, tan.z) + rand(-0.07, 0.07), 0));
     s.set(rand(0.86, 1.05), 1, rand(0.9, 1.08));
     m.compose(p, q, s);
