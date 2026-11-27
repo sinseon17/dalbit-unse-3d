@@ -495,7 +495,7 @@ function pine(x, z, s = 1) {
 
 /* ---------- 반딧불 ---------- */
 const fireflies = (() => {
-  const N = 90;
+  const N = 70;
   const geo = new THREE.BufferGeometry();
   const pos = new Float32Array(N * 3);
   const base = [];
@@ -507,7 +507,7 @@ const fireflies = (() => {
   }
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const pts = new THREE.Points(geo, new THREE.PointsMaterial({
-    map: glowTex, color: 0xffe1a0, size: 0.5, transparent: true, opacity: 0.9,
+    map: glowTex, color: 0xffe1a0, size: 0.36, transparent: true, opacity: 0.9,
     blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true, fog: false
   }));
   scene.add(pts);
@@ -777,9 +777,9 @@ function clampWalk(v) {
 const state = {
   mode: 'boy',
   auto: false,
-  camYaw: 0.08,
-  camPitch: 0.20,
-  camDist: 8.4,
+  camYaw: 0.06,
+  camPitch: 0.08,
+  camDist: 12.0,
   focus: new THREE.Vector3(0, 1.05, 6.4),
   dragging: false,
 };
@@ -811,7 +811,7 @@ addEventListener('keydown', e => {
     hideHint();
   }
   if (k === 'f') openFortune();
-  if (k === 'r') { state.camYaw = 0.08; state.camPitch = 0.20; state.camDist = 8.4; }
+  if (k === 'r') { state.camYaw = 0.06; state.camPitch = 0.08; state.camDist = 12.0; }
 });
 addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
 
