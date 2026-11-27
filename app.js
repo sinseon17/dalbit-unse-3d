@@ -135,9 +135,9 @@ const sky = new THREE.Mesh(
 scene.add(sky);
 
 const moon = new THREE.Group();
-moon.position.set(-56, 27, -112);
+moon.position.set(-56, 14, -112);
 const moonBody = new THREE.Mesh(
-  new THREE.SphereGeometry(9, 32, 24),
+  new THREE.SphereGeometry(6.5, 32, 24),
   new THREE.MeshBasicMaterial({ color: 0xfff6dd, fog: false })
 );
 moon.add(moonBody);
@@ -145,7 +145,7 @@ const moonHalo = new THREE.Sprite(new THREE.SpriteMaterial({
   map: glowTex, color: 0xffe9b8, transparent: true, opacity: 0.85,
   blending: THREE.AdditiveBlending, depthWrite: false, fog: false
 }));
-moonHalo.scale.set(22, 22, 1);
+moonHalo.scale.set(16, 16, 1);
 moon.add(moonHalo);
 scene.add(moon);
 
@@ -219,7 +219,7 @@ const pathLength = pathCurve.getLength();
 {
   const count = Math.floor(pathLength / 1.05);
   const slabGeo = new THREE.BoxGeometry(1.42, 0.09, 1.05);
-  const slabMat = new THREE.MeshStandardMaterial({ color: 0x5a6070, roughness: 0.95, metalness: 0.02 });
+  const slabMat = new THREE.MeshStandardMaterial({ color: 0x484e5c, roughness: 0.95, metalness: 0.02 });
   const slabs = new THREE.InstancedMesh(slabGeo, slabMat, count);
   slabs.castShadow = false; slabs.receiveShadow = true;
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3();
@@ -391,14 +391,14 @@ function stoneLantern(x, z) {
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 1.05, 8), stoneMat), 0.76);
   add(new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.2, 0.52), stoneMat), 1.38);
   const lampBody = add(new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.6, 0.62),
-    new THREE.MeshStandardMaterial({ color: 0xffdda8, emissive: 0xffb05c, emissiveIntensity: 1.5, roughness: 0.6 })), 1.78);
+    new THREE.MeshStandardMaterial({ color: 0xffdda8, emissive: 0xffb05c, emissiveIntensity: 1.0, roughness: 0.6 })), 1.78);
   const cap = add(new THREE.Mesh(new THREE.ConeGeometry(0.66, 0.44, 4), stoneMat), 2.28);
   cap.rotation.y = Math.PI / 4;
   add(new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), stoneMat), 2.55);
-  const l = new THREE.PointLight(0xffb060, 16, 13, 2);
+  const l = new THREE.PointLight(0xffb060, 9, 12, 2);
   l.position.set(0, 1.85, 0);
   g.add(l);
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffbb77, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffbb77, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false }));
   s.scale.set(3.4, 3.4, 1); s.position.y = 1.8; g.add(s);
   scene.add(g);
   return { g, lampBody, light: l };
@@ -820,9 +820,10 @@ const stickEl = document.getElementById('stick');
 const knobEl = stickEl.querySelector('.knob');
 
 function isTouchDevice() {
-  return matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+  return matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window || innerWidth < 820;
 }
 if (isTouchDevice()) stickEl.classList.add('show');
+addEventListener('resize', () => stickEl.classList.toggle('show', isTouchDevice()));
 
 function stickStart(e) {
   stick.active = true;
@@ -929,8 +930,8 @@ function pickGround(cx, cy) {
   } else {
     // 둘이 나란히 서도록 좌우 간격
     const right = new THREE.Vector3(Math.cos(state.camYaw), 0, -Math.sin(state.camYaw));
-    setTarget(boy, p.clone().addScaledVector(right, -0.75), false);
-    setTarget(girl, p.clone().addScaledVector(right, 0.75), true);
+    setTarget(boy, p.clone().addScaledVector(right, -1.0), false);
+    setTarget(girl, p.clone().addScaledVector(right, 1.0), true);
   }
   hideHint();
 }
@@ -1105,8 +1106,7 @@ function updateCamera(dt) {
   camera.lookAt(state.focus.x, state.focus.y + 0.15, state.focus.z);
 
   // 시선에 따라 별·달이 살짝 흔들리는 느낌
-  moon.position.x = -56 + Math.sin(state.camYaw * 0.2) * 4;
-}
+  moon.position.x = -56 + Math.sin(state.camYaw * 0.2) * 4;}
 
 /* ============================================================
    UI
