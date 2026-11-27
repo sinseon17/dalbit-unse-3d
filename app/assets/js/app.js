@@ -965,13 +965,14 @@
   // 팬에서 카드 한 장을 눌렀을 때 — 뒤집고, 자리로 옮긴다
   function pickFromFan(el) {
     const i = +el.dataset.i;
-    if (T.busy || !T.spread[i] || T.drawn.some(d => d.si === i)) return;
+    if (T.busy || T.drawn.length >= 3 || !T.spread[i] || T.drawn.some(d => d.si === i)) return;
     T.busy = true;
     const pick = Object.assign({ si: i }, T.spread[i]);
     el.classList.add("flipped");
     el.classList.remove("pickable");
     tarotFlipSfx();
     setTimeout(() => {
+      if (T.drawn.length >= 3) { T.busy = false; return; }
       T.drawn.push(pick);
       const k = T.drawn.length - 1;
       const slot = $(`#picks .pick-slot[data-k="${k}"]`);
