@@ -1,6 +1,8 @@
 # 🏮 달빛 운세 · 산사 마당 (3D 캐릭터 미리보기)
 
-**바로 열기 → https://sinseon17.github.io/dalbit-unse-3d/**
+**달빛 운세 앱 웹 버전 → https://sinseon17.github.io/dalbit-unse-3d/app/** (소스: `app/`)
+
+**3D 캐릭터 미리보기(프로토타입) → https://sinseon17.github.io/dalbit-unse-3d/**
 
 고요한 달빛 사찰 마당에서 귀여운 남녀 캐릭터가 걷는 **3D 캐릭터 미리보기**입니다.
 '달빛 운세' 서비스의 분위기와 캐릭터 애니메이션을 먼저 확인하기 위한 프로토타입입니다.

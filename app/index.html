@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#bfe6ff">
+<meta name="description" content="달빛 운세 마을 — 3D 마을을 걸어 다니며 오늘의 운세·사주·타로·궁합·작명·꿈풀이·명상까지 전부 무료. 마음이 닿으면 자율 복채로 마을을 가꿔 주세요.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="달빛 운세">
+<title>달빛 운세 마을 · 사주 · 타로 · 궁합 · 작명 · 꿈풀이</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="assets/img/app-icon.png">
+<link rel="stylesheet" href="assets/fonts/fonts.css">
+<link rel="stylesheet" href="assets/css/app.css">
+<link rel="stylesheet" href="assets/css/world.css">
+</head>
+<body>
+<div id="device">
+
+  <!-- ============ 풀스크린 3D 마을 ============ -->
+  <div class="world" id="world" aria-label="달빛 운세 마을">
+    <div class="stage" id="stage">
+      <img class="vbg" src="assets/img/village-bg-clay.jpg" alt="달빛 운세 마을 — 3D 클레이 마을">
+      <div class="booths" id="booths"></div>
+      <div class="actors" id="actors"></div>
+    </div>
+    <div class="fx" id="fx"></div>
+    <div class="world-labels" id="worldLabels"></div>
+  </div>
+
+  <!-- ============ 상단 HUD ============ -->
+  <header class="hud-top">
+    <div class="hud-left">
+      <div class="hud-card" id="hudCard">
+        <div class="hud-brand"><span class="dot"></span>달빛 운세</div>
+        <button class="hud-count" id="hudCount" type="button" aria-label="지금 마을에 있는 사람 보기">
+          <span class="live"></span>지금 마을에 <b id="hudCountNum">12</b>명
+        </button>
+      </div>
+      <button class="hud-back" id="hudBack" type="button" hidden>🏠 마을</button>
+    </div>
+    <div class="hud-right">
+      <button class="donate-btn" id="btnDonate">🧧 후원</button>
+      <button class="icon-btn" id="btnSound" aria-label="배경음 끄기">🔊</button>
+      <button class="icon-btn" id="btnSettings" aria-label="설정">☰</button>
+    </div>
+  </header>
+
+  <div class="world-greet" id="worldGreet"></div>
+
+  <div class="walk-hint" id="walkHint" hidden><span class="sp"></span><span id="walkHintText"></span></div>
+
+  <!-- ============ 하단 HUD ============ -->
+  <div class="hud-bottom" id="hudBottom">
+    <div class="yard-row">
+      <button class="yard-btn" type="button" data-play="bag"><span>🎁</span><b>복주머니</b></button>
+      <button class="yard-btn" type="button" data-play="coin"><span>🪙</span><b>엽전 점</b></button>
+      <button class="yard-btn" type="button" data-play="wish"><span>🏮</span><b>소원등</b></button>
+      <button class="yard-btn" type="button" data-play="pet"><span>🦊</span><b>친구</b></button>
+    </div>
+    <nav class="dock" id="dock" aria-label="마을 부스">
+      <button type="button" data-tab="today"><span class="ic">☀️</span><b>오늘</b><i class="badge" id="dockScore">76</i></button>
+      <button type="button" data-tab="saju"><span class="ic">☯️</span><b>사주</b></button>
+      <button type="button" data-tab="tarot"><span class="ic">🔮</span><b>타로</b></button>
+      <button type="button" data-tab="dream"><span class="ic">🍵</span><b>꿈풀이</b></button>
+      <button type="button" data-tab="naming"><span class="ic">✏️</span><b>작명</b></button>
+      <button type="button" data-tab="gungap"><span class="ic">💗</span><b>궁합</b></button>
+      <button type="button" data-tab="meditation"><span class="ic">🔔</span><b>명상</b></button>
+    </nav>
+  </div>
+
+  <aside class="v-play yard-panel" id="yardPanel" hidden></aside>
+
+  <!-- ============ 방 바텀시트 ============ -->
+  <section class="room" id="room" aria-hidden="true">
+    <div class="room-grab"><span></span></div>
+    <div class="room-body" id="roomBody">
+      <div class="screen hidden" id="screen-today"></div>
+      <div class="screen hidden" id="screen-saju"></div>
+      <div class="screen hidden" id="screen-tarot"></div>
+      <div class="screen hidden" id="screen-gungap"></div>
+      <div class="screen hidden" id="screen-naming"></div>
+      <div class="screen hidden" id="screen-dream"></div>
+      <div class="screen hidden" id="screen-meditation"></div>
+    </div>
+  </section>
+
+  <div class="overlay" id="overlay"><div class="sheet" id="sheetBody"></div></div>
+  <div class="toast" id="toast"></div>
+
+  <div class="loading-veil" id="loading">
+    <div>
+      <div class="ring"></div>
+      <div class="t">계산하고 있어요</div>
+      <div class="s">잠시만 기다려 주세요</div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/data/lunar-table.js"></script>
+<script src="assets/data/tarot.js"></script>
+<script src="assets/data/hanja.js"></script>
+<script src="assets/js/config.js"></script>
+<script src="assets/js/engine.js"></script>
+<script src="assets/js/content.js"></script>
+<script src="assets/js/naming.js"></script>
+<script src="assets/js/bgm.js"></script>
+<script src="assets/js/meditation.js"></script>
+<script src="assets/js/village.js"></script>
+<script src="assets/js/path_graph.js"></script>
+<script src="assets/js/world2d.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

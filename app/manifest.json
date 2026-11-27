@@ -1,0 +1,16 @@
+{
+  "name": "달빛 운세 마을 — 사주·타로·궁합·작명·꿈풀이",
+  "short_name": "달빛 운세",
+  "description": "모든 풀이가 무료인 운세 마을. 오늘의 운세·사주·타로·궁합·작명·꿈풀이·명상까지, 마음이 닿으면 자율 복채로.",
+  "lang": "ko",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fffaf0",
+  "theme_color": "#fffaf0",
+  "icons": [
+    { "src": "assets/img/app-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/img/app-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
