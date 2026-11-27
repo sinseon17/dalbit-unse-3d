@@ -132,7 +132,7 @@
     const label = enabled ? "호흡 음성 안내 끄기" : "호흡 음성 안내 켜기";
     if (b.getAttribute("aria-label") !== label) b.setAttribute("aria-label", label);
     const st = b.querySelector(".st");
-    const word = enabled ? "켜짐" : "꺼짐";
+    const word = !enabled ? "꺼짐" : (muted() ? "음소거" : "켜짐");   // 상단 음소거 중에는 왜 조용한지 보여 준다
     if (st && st.textContent !== word) st.textContent = word;   // 같으면 건드리지 않는다 (관찰자 되돌림 방지)
   }
 
@@ -156,7 +156,7 @@
       if (vb) { toggle(); return; }
       // 상단 음소거 · 설정의 배경음 끄기를 누르면 하던 말도 멈춘다
       if (t.closest("#btnSound, #lnkSound")) {
-        setTimeout(() => { if (muted()) stop(); }, 0);
+        setTimeout(() => { if (muted()) stop(); syncToggle(); }, 0);
       }
     }, true);
 
