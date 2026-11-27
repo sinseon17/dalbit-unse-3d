@@ -588,7 +588,10 @@ function buildCharacter(kind) {
     const pivot = new THREE.Group();
     pivot.position.set(side * (isGirl ? 0.34 : 0.35), isGirl ? 1.14 : 1.08, isGirl ? 0.02 : 0);
     bob.add(pivot);
-    const sleeve = addMesh(new THREE.CapsuleGeometry(0.095, 0.19, 5, 12), clothMat, pivot, 0, -0.17, 0);
+    const sleeveMat = isGirl
+      ? new THREE.MeshStandardMaterial({ color: 0xf9e6da, roughness: 0.9 })
+      : clothMat;
+    const sleeve = addMesh(new THREE.CapsuleGeometry(0.095, 0.19, 5, 12), sleeveMat, pivot, 0, -0.17, 0);
     sleeve.scale.z = 0.92;
     const hand = addMesh(new THREE.SphereGeometry(0.093, 12, 10), skin, pivot, 0, -0.36, 0);
     if (isGirl) {
@@ -689,7 +692,7 @@ function buildCharacter(kind) {
 
   return {
     kind, isGirl, root, bob, head, armL, armR, legL, legR, skull,
-    armOut: isGirl ? 0.44 : 0.16,
+    armOut: isGirl ? 0.34 : 0.16,
     phase: rand(0, TAU), yaw: Math.PI, target: null,
     vel: new THREE.Vector3(), speed: 0, idleTimer: rand(6, 11), gesture: null, gestureT: 0,
     autoT: null, autoDir: 1, pause: 0, baseY: 0,
