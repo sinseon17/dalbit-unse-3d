@@ -50,7 +50,7 @@ const groundTex = canvasTex(512, 512, (g, w, h) => {
   // 자갈
   for (let i = 0; i < 1600; i++) {
     const x = Math.random() * w, y = Math.random() * h, r = rand(0.6, 2.6);
-    g.fillStyle = `rgba(${170 + Math.random() * 60 | 0},${175 + Math.random() * 55 | 0},${190 + Math.random() * 45 | 0},${rand(0.04, 0.16)})`;
+    g.fillStyle = `rgba(${170 + Math.random() * 60 | 0},${175 + Math.random() * 55 | 0},${190 + Math.random() * 45 | 0},${rand(0.02, 0.09)})`;
     g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
   }
 }, 12, 12);
@@ -121,8 +121,8 @@ const sky = new THREE.Mesh(
     side: THREE.BackSide, depthWrite: false, fog: false,
     uniforms: {
       cTop: { value: new THREE.Color(0x04060e) },
-      cMid: { value: new THREE.Color(0x0e1730) },
-      cBot: { value: new THREE.Color(0x27355c) },
+      cMid: { value: new THREE.Color(0x0a1226) },
+      cBot: { value: new THREE.Color(0x16223c) },
     },
     vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
     fragmentShader: `varying vec3 vP; uniform vec3 cTop; uniform vec3 cMid; uniform vec3 cBot;
@@ -135,7 +135,7 @@ const sky = new THREE.Mesh(
 scene.add(sky);
 
 const moon = new THREE.Group();
-moon.position.set(-46, 41, -120);
+moon.position.set(-42, 31, -118);
 const moonBody = new THREE.Mesh(
   new THREE.SphereGeometry(9, 32, 24),
   new THREE.MeshBasicMaterial({ color: 0xfff6dd, fog: false })
@@ -175,7 +175,7 @@ const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({
 scene.add(stars);
 
 /* ---------- 조명 ---------- */
-scene.add(new THREE.HemisphereLight(0x3b5590, 0x0d0f18, 0.9));
+scene.add(new THREE.HemisphereLight(0x3b5590, 0x0d0f18, 1.15));
 
 const moonLight = new THREE.DirectionalLight(0xc2d6ff, 2.3);
 moonLight.position.set(-30, 38, -20);
@@ -184,12 +184,12 @@ moonLight.shadow.mapSize.set(2048, 2048);
 Object.assign(moonLight.shadow.camera, { left: -24, right: 24, top: 24, bottom: -24, near: 1, far: 110 });
 moonLight.shadow.camera.updateProjectionMatrix();
 moonLight.shadow.bias = -0.0006;
-moonLight.shadow.normalBias = 0.022;
+moonLight.shadow.normalBias = 0.04;
 scene.add(moonLight);
-scene.add(new THREE.AmbientLight(0x263252, 0.55));
+scene.add(new THREE.AmbientLight(0x263252, 0.5));
 
-const fillLight = new THREE.DirectionalLight(0xffb877, 0.35);
-fillLight.position.set(6, 8, 14);
+const fillLight = new THREE.DirectionalLight(0xffc48c, 0.85);
+fillLight.position.set(6, 8, 16);
 scene.add(fillLight);
 
 /* ---------- 바닥 ---------- */
@@ -219,7 +219,7 @@ const pathLength = pathCurve.getLength();
 {
   const count = Math.floor(pathLength / 1.05);
   const slabGeo = new THREE.BoxGeometry(1.42, 0.09, 1.05);
-  const slabMat = new THREE.MeshStandardMaterial({ color: 0x7d8494, roughness: 0.94, metalness: 0.02 });
+  const slabMat = new THREE.MeshStandardMaterial({ color: 0x6d7382, roughness: 0.95, metalness: 0.02 });
   const slabs = new THREE.InstancedMesh(slabGeo, slabMat, count);
   slabs.castShadow = false; slabs.receiveShadow = true;
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3();
@@ -294,7 +294,7 @@ box(14, 0.16, 7, new THREE.MeshStandardMaterial({ color: 0x8d3a2e, roughness: 0.
 
 // 지붕 (맞배+팔작 느낌)
 {
-  const W = 9.9, D = 6.1, ridgeH = 1.95, baseY = 5.62;
+  const W = 9.3, D = 5.7, ridgeH = 2.15, baseY = 5.78;
   const verts = [];
   const A = [-W, baseY, D], B = [W, baseY, D], C = [W, baseY, -D], Dd = [-W, baseY, -D];
   const E = [-3.9, baseY + ridgeH, 0], F = [3.9, baseY + ridgeH, 0];
@@ -324,15 +324,15 @@ box(14, 0.16, 7, new THREE.MeshStandardMaterial({ color: 0x8d3a2e, roughness: 0.
   hall.add(roof);
 
   // 처마 끝 살짝 들림
-  const eaveMat = new THREE.MeshStandardMaterial({ map: roofTex, color: 0xbcc4d4, roughness: 0.8 });
-  const eaveF = box(20.2, 0.22, 0.75, eaveMat, 0, baseY - 0.02, D + 0.28);
-  eaveF.rotation.x = -0.16;
-  const eaveB = box(20.2, 0.22, 0.75, eaveMat, 0, baseY - 0.02, -D - 0.28);
-  eaveB.rotation.x = 0.16;
-  const eaveL = box(0.75, 0.22, 12.6, eaveMat, -W - 0.28, baseY - 0.02, 0);
-  eaveL.rotation.z = -0.16;
-  const eaveR = box(0.75, 0.22, 12.6, eaveMat, W + 0.28, baseY - 0.02, 0);
-  eaveR.rotation.z = 0.16;
+  const eaveMat = new THREE.MeshStandardMaterial({ map: roofTex, color: 0xaab2c2, roughness: 0.8 });
+  const eaveF = box(18.9, 0.2, 0.52, eaveMat, 0, baseY + 0.02, D + 0.16);
+  eaveF.rotation.x = -0.13;
+  const eaveB = box(18.9, 0.2, 0.52, eaveMat, 0, baseY + 0.02, -D - 0.16);
+  eaveB.rotation.x = 0.13;
+  const eaveL = box(0.52, 0.2, 11.9, eaveMat, -W - 0.16, baseY + 0.02, 0);
+  eaveL.rotation.z = -0.13;
+  const eaveR = box(0.52, 0.2, 11.9, eaveMat, W + 0.16, baseY + 0.02, 0);
+  eaveR.rotation.z = 0.13;
 
   // 용마루
   box(9.4, 0.5, 0.55, new THREE.MeshStandardMaterial({ color: 0x2b3240, roughness: 0.7 }), 0, baseY + ridgeH + 0.08, 0);
@@ -567,14 +567,14 @@ function buildCharacter(kind) {
   } else {
     const torso = addMesh(new THREE.CapsuleGeometry(0.3, 0.26, 6, 16), clothMat, bob, 0, 0.85, 0);
     torso.scale.set(1, 1, 0.88);
-    // 깃
-    const collarL = addMesh(new THREE.BoxGeometry(0.14, 0.3, 0.06), MAT.white, bob, -0.08, 1.06, 0.22);
-    collarL.rotation.z = 0.5;
-    const collarR = addMesh(new THREE.BoxGeometry(0.14, 0.3, 0.06), MAT.white, bob, 0.08, 1.06, 0.22);
-    collarR.rotation.z = -0.5;
+    // 깃 (V자)
+    const collarL = addMesh(new THREE.BoxGeometry(0.075, 0.26, 0.04), MAT.white, bob, -0.065, 1.04, 0.235);
+    collarL.rotation.z = 0.46;
+    const collarR = addMesh(new THREE.BoxGeometry(0.075, 0.26, 0.04), MAT.white, bob, 0.065, 1.04, 0.235);
+    collarR.rotation.z = -0.46;
     // 띠
-    addMesh(new THREE.CylinderGeometry(0.315, 0.315, 0.12, 16), accMat, bob, 0, 0.78, 0);
-    addMesh(new THREE.BoxGeometry(0.42, 0.34, 0.02), new THREE.MeshStandardMaterial({ color: 0x2a3f63, roughness: 0.9 }), bob, 0, 0.85, 0.29);
+    addMesh(new THREE.CylinderGeometry(0.312, 0.312, 0.1, 16), accMat, bob, 0, 0.76, 0);
+    const knot = addMesh(new THREE.SphereGeometry(0.055, 10, 8), accMat, bob, 0, 0.73, 0.28);
   }
 
   /* ── 팔 ── */
@@ -613,39 +613,43 @@ function buildCharacter(kind) {
   const skull = addMesh(new THREE.SphereGeometry(0.43, 28, 22), skin, head, 0, 0.38, 0);
   skull.scale.set(1, 0.97, 0.94);
 
-  // 머리카락 캡
-  const capGeo = new THREE.SphereGeometry(0.445, 28, 20, 0, TAU, 0, Math.PI * 0.62);
-  const cap = addMesh(capGeo, hairMat, head, 0, 0.375, 0);
-  cap.rotation.x = -0.13;
-  // 앞머리
-  const bangGeo = new THREE.SphereGeometry(0.16, 14, 12);
-  [-0.19, -0.02, 0.16].forEach((x, i) => {
-    const b = addMesh(bangGeo, hairMat, head, x, 0.63 - i * 0.012, 0.33);
-    b.scale.set(1.1, 0.72, 0.7);
-    b.rotation.z = (i - 1) * 0.2;
-  });
+  // 머리카락: 정수리 덮개 + 뒤통수 (얼굴은 비워 둠)
+  const capGeo = new THREE.SphereGeometry(0.452, 30, 18, 0, TAU, 0, Math.PI * 0.40);
+  addMesh(capGeo, hairMat, head, 0, 0.40, 0);
+  const backGeo = new THREE.SphereGeometry(0.449, 30, 20, Math.PI * 0.80, Math.PI * 1.40, 0, Math.PI * 0.78);
+  addMesh(backGeo, hairMat, head, 0, 0.38, 0);
+
+  // 앞머리 (이마 위로 물결지는 머리칼)
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 6 - 0.5) * 1.75;
+    const lock = addMesh(new THREE.SphereGeometry(0.115, 14, 10), hairMat, head,
+      Math.sin(a) * 0.395, 0.585 - Math.abs(a) * 0.05, Math.cos(a) * 0.355);
+    lock.scale.set(1.3, 0.9, 0.95);
+    lock.rotation.y = a;
+  }
 
   if (isGirl) {
-    // 양 갈래 + 둥근 묶음
+    // 긴 뒷머리 + 둥근 묶음
     [-1, 1].forEach(s => {
-      const tail = addMesh(new THREE.CapsuleGeometry(0.12, 0.42, 6, 12), hairMat, head, s * 0.36, 0.12, -0.06);
-      tail.rotation.z = s * 0.22;
-      tail.rotation.x = 0.12;
+      const tail = addMesh(new THREE.CapsuleGeometry(0.13, 0.46, 6, 12), hairMat, head, s * 0.33, 0.10, -0.14);
+      tail.rotation.z = s * 0.16;
     });
-    addMesh(new THREE.SphereGeometry(0.19, 16, 14), hairMat, head, 0, 0.74, -0.22);
-    const pin = addMesh(new THREE.CylinderGeometry(0.018, 0.018, 0.42, 6),
-      new THREE.MeshStandardMaterial({ color: 0xf6d08a, emissive: 0xf0b45c, emissiveIntensity: 0.6, metalness: 0.6, roughness: 0.4 }),
-      head, 0, 0.74, -0.22);
+    const backTail = addMesh(new THREE.CapsuleGeometry(0.2, 0.42, 6, 14), hairMat, head, 0, 0.16, -0.32);
+    backTail.scale.z = 0.7;
+    addMesh(new THREE.SphereGeometry(0.185, 16, 14), hairMat, head, 0, 0.76, -0.2);
+    const pin = addMesh(new THREE.CylinderGeometry(0.016, 0.016, 0.44, 6),
+      new THREE.MeshStandardMaterial({ color: 0xf6d08a, emissive: 0xf0b45c, emissiveIntensity: 0.8, metalness: 0.6, roughness: 0.4 }),
+      head, 0, 0.76, -0.2);
     pin.rotation.z = Math.PI / 2;
     // 앞머리 리본
-    const ribbon = addMesh(new THREE.SphereGeometry(0.075, 10, 8), accMat, head, 0.16, 0.68, 0.1);
-    ribbon.scale.set(1.4, 0.9, 0.6);
+    const ribbon = addMesh(new THREE.SphereGeometry(0.075, 10, 8), accMat, head, 0.19, 0.66, 0.09);
+    ribbon.scale.set(1.5, 0.9, 0.6);
   } else {
-    // 삐죽 머리
-    [-0.2, 0.05, 0.24].forEach((x, i) => {
-      const tuft = addMesh(new THREE.ConeGeometry(0.1, 0.24, 8), hairMat, head, x, 0.78, -0.02 + i * 0.04);
-      tuft.rotation.z = (i - 1) * -0.5;
-      tuft.rotation.x = -0.25;
+    // 삐죽 머리 (뒤로 살짝 젖혀진 잔머리)
+    [-0.18, 0.04, 0.2].forEach((x, i) => {
+      const tuft = addMesh(new THREE.ConeGeometry(0.075, 0.2, 8), hairMat, head, x, 0.8, -0.1 + i * 0.03);
+      tuft.rotation.z = (i - 1) * -0.35;
+      tuft.rotation.x = -0.9;
     });
   }
 
@@ -661,8 +665,8 @@ function buildCharacter(kind) {
   // 눈썹
   const browMat = hairMat;
   [-1, 1].forEach(s => {
-    const brow = addMesh(new THREE.BoxGeometry(0.1, 0.018, 0.03), browMat, head, s * 0.145, 0.52, 0.39);
-    brow.rotation.z = s * -0.14;
+    const brow = addMesh(new THREE.BoxGeometry(0.09, 0.016, 0.03), browMat, head, s * 0.145, 0.505, 0.385);
+    brow.rotation.z = s * -0.12;
   });
 
   // 볼
@@ -766,10 +770,10 @@ function clampWalk(v) {
 const state = {
   mode: 'boy',
   auto: false,
-  camYaw: 0.02,
-  camPitch: 0.26,
-  camDist: 10.5,
-  focus: new THREE.Vector3(0, 1.1, 4),
+  camYaw: 0.08,
+  camPitch: 0.20,
+  camDist: 8.4,
+  focus: new THREE.Vector3(0, 1.05, 6.4),
   dragging: false,
 };
 
@@ -784,10 +788,10 @@ function visibleChars() {
 }
 
 // 초기 배치
-boy.root.position.set(-0.55, 0, 6.4);
-girl.root.position.set(0.65, 0, 6.4);
-boy.root.rotation.y = Math.PI; girl.root.rotation.y = Math.PI;
-boy.yaw = girl.yaw = Math.PI;
+boy.root.position.set(-0.6, 0, 6.4);
+girl.root.position.set(0.6, 0, 6.4);
+boy.root.rotation.y = 0; girl.root.rotation.y = 0;
+boy.yaw = girl.yaw = 0;
 girl.root.visible = false;
 boy.root.visible = true;
 
@@ -800,7 +804,7 @@ addEventListener('keydown', e => {
     hideHint();
   }
   if (k === 'f') openFortune();
-  if (k === 'r') { state.camYaw = 0.02; state.camPitch = 0.26; state.camDist = 10.5; }
+  if (k === 'r') { state.camYaw = 0.08; state.camPitch = 0.20; state.camDist = 8.4; }
 });
 addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
 
@@ -1094,7 +1098,7 @@ function updateCamera(dt) {
   camera.lookAt(state.focus.x, state.focus.y + 0.15, state.focus.z);
 
   // 시선에 따라 별·달이 살짝 흔들리는 느낌
-  moon.position.x = -46 + Math.sin(state.camYaw * 0.2) * 4;
+  moon.position.x = -42 + Math.sin(state.camYaw * 0.2) * 4;
 }
 
 /* ============================================================
