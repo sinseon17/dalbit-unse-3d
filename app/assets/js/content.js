@@ -302,19 +302,109 @@
     return SAMHAP.some(group => group.includes(a) && group.includes(b));
   }
 
-  function gungap(A, B) {
-    // A, B: {name, birth:{y,m,d,hour,minute,isLunar}, gender}
+  /* 두 사람이 어떤 사이인지 적어 주면, 그 자리에 맞춰 말투와 항목을 다듬는다 */
+  const REL_KINDS = [
+    {
+      key: "연인", title: "연인으로서의 궁합",
+      keys: ["연인", "애인", "커플", "사귀", "남친", "여친", "남자친구", "여자친구", "썸", "첫사랑", "약혼"],
+      parts: ["끌림", "대화", "생활", "마음 씀씀이", "오래가는 정"],
+      note: "연인 사이로 보면, 설렘을 오래 끌고 가는 힘은 큰 사건보다 자주 나누는 작은 대화에 있습니다."
+    },
+    {
+      key: "부부", title: "부부로서의 궁합",
+      keys: ["부부", "남편", "아내", "와이프", "신랑", "배우자", "결혼", "혼인"],
+      parts: ["살림 궁합", "대화", "생활 리듬", "재물", "장기 안정"],
+      note: "부부로 보면, 돈과 시간을 쓰는 방식을 미리 맞춰 두는 것만으로 다툼의 절반이 줄어듭니다."
+    },
+    {
+      key: "부모와 자녀", title: "부모와 자녀로서의 궁합",
+      keys: ["부모", "자녀", "엄마", "아빠", "어머니", "아버지", "아들", "딸", "모녀", "부녀", "모자", "부자", "시어머니", "장모"],
+      parts: ["기질", "대화", "생활", "가르침", "정"],
+      note: "부모와 자녀로 보면, 기다려 주는 쪽과 서두르는 쪽이 늘 다릅니다. 가르치려는 말보다 함께 앉아 있는 시간이 오래 남습니다."
+    },
+    {
+      key: "형제자매", title: "형제자매로서의 궁합",
+      keys: ["형제", "자매", "남매", "오빠", "언니", "누나", "동생", "손위", "손아래"],
+      parts: ["기질", "대화", "생활", "재물", "정"],
+      note: "형제자매로 보면, 자라 온 순서보다 지금의 거리감이 중요합니다. 서로의 생활에 간섭하지 않는 선을 지키면 오래 편안합니다."
+    },
+    {
+      key: "친구", title: "친구로서의 궁합",
+      keys: ["친구", "절친", "동창", "지인", "베프", "친한"],
+      parts: ["기질", "대화", "어울림", "의리", "오래감"],
+      note: "친구로 보면, 우열을 따지지 않는 쪽이 오래 곁에 남습니다. 잘될 때보다 어려울 때 한 번 더 챙기는 쪽이 오래갑니다."
+    },
+    {
+      key: "직장 동료", title: "직장 동료로서의 궁합",
+      keys: ["직장", "동료", "회사", "상사", "부하", "동업", "사업", "거래처", "파트너", "팀원"],
+      parts: ["기질", "업무 호흡", "의사소통", "재물", "장기 안정"],
+      note: "직장 동료로 보면, 일의 경계를 분명히 할수록 정이 오래갑니다. 역할을 말로 정해 두면 서운함이 줄어듭니다."
+    }
+  ];
+  const DEFAULT_PARTS = ["기질 궁합", "대화 궁합", "생활 궁합", "재물 궁합", "장기 안정"];
+  function relOf(text) {
+    const raw = String(text || "").trim().slice(0, 20);
+    if (!raw) return null;
+    const t = raw.replace(/\s/g, "");
+    const hit = REL_KINDS.find(k => k.keys.some(w => t.includes(w)));
+    if (hit) return { key: hit.key, title: hit.title, parts: hit.parts, note: hit.note };
+    return {
+      key: raw, title: `‘${raw}’ 인연으로서의 궁합`, parts: null,
+      note: `두 사람을 ‘${raw}’ 사이로 보았습니다. 그 자리에서 서로에게 필요한 역할을 한 번씩 말로 꺼내 보세요.`
+    };
+  }
+
+  /* 궁합 — 이름만(이름 궁합) · 생년월일만(사주 궁합) · 둘 다(종합) */
+  function gungap(A, B, opts) {
+    const o = opts || {};
     const ba = A.birth || A, bb = B.birth || B;
+    const nameA = String(A.name || "").trim(), nameB = String(B.name || "").trim();
+    const birthA = A.hasBirth !== undefined ? !!A.hasBirth : !!(ba && ba.y && ba.m && ba.d);
+    const birthB = B.hasBirth !== undefined ? !!B.hasBirth : !!(bb && bb.y && bb.m && bb.d);
+    const bothNames = !!(nameA && nameB), bothBirths = birthA && birthB;
+    const mode = bothNames && bothBirths ? "both" : bothBirths ? "saju" : bothNames ? "name" : null;
+    if (!mode) return { error: "두 사람의 이름을 모두 적거나, 생년월일을 모두 골라 주세요" };
+    const relCtx = relOf(o.rel);
+
+    /* ---- 이름만 있는 경우: 이름 궁합 ---- */
+    if (mode === "name") {
+      const ng = nameGungap(nameA, nameB);
+      const pa = nameA.replace(/\s/g, ""), pb = nameB.replace(/\s/g, "");
+      const fa = initialElem(pa[0]), fb = initialElem(pb[0]);
+      const ea = initialElem(pa[pa.length - 1]), eb = initialElem(pb[pb.length - 1]);
+      const pairLine = (x, y) => {
+        const rl = pairRel(x, y);
+        return rl === "give" || rl === "receive" ? "서로의 기운을 살리는 소리" : rl === "clash" ? "서로를 누르는 소리" : "무난하게 어울리는 소리";
+      };
+      const score = ng.score;
+      return {
+        mode, rel: relCtx, a: { name: nameA, gender: A.gender, sa: null }, b: { name: nameB, gender: B.gender, sa: null },
+        score, parts: null, nameG: ng,
+        relTitle: relCtx ? relCtx.title : "", relNote: relCtx ? relCtx.note : "",
+        elemNote: `이름의 소리와 획수로 맞춰 본 두 사람 — ${pairLine(ea, eb)}`,
+        nameParts: [
+          { label: "이름 첫소리", text: `${E.ELEM_KR[fa]}(${fa})과 ${E.ELEM_KR[fb]}(${fb}) — ${pairLine(fa, fb)}입니다.` },
+          { label: "이름 끝소리", text: `${E.ELEM_KR[ea]}(${ea})과 ${E.ELEM_KR[eb]}(${eb}) — ${pairLine(ea, eb)}입니다.` }
+        ],
+        branchNote: "", yearNote: "", goodText: "", warnText: "",
+        advice: score >= 85 ? "이름만으로도 잘 어울리는 소리입니다. 자주 불러 주는 것만으로 정이 쌓이는 사이예요."
+          : score >= 70 ? "무난하게 어울리는 이름입니다. 다정한 호칭을 하나 정해 두면 더 가까워집니다."
+            : "소리의 결이 조금 다릅니다. 이름을 부를 때 한 마디 더 다정하게 붙여 보세요.",
+        nudge: "생년월일까지 넣으면 일간·띠·오행까지 맞춘 사주 궁합을 함께 볼 수 있어요."
+      };
+    }
+
+    /* ---- 생년월일이 있는 경우: 사주 궁합 (+ 이름이 있으면 종합) ---- */
     const sa = E.computeSaju({
       y: ba.y, m: ba.m, d: ba.d, hour: ba.hour, minute: ba.minute,
-      isLunar: ba.isLunar, unknownTime: ba.unknownTime, gender: A.gender, name: A.name
+      isLunar: ba.isLunar, unknownTime: ba.unknownTime, gender: A.gender, name: nameA
     });
     const sb = E.computeSaju({
       y: bb.y, m: bb.m, d: bb.d, hour: bb.hour, minute: bb.minute,
-      isLunar: bb.isLunar, unknownTime: bb.unknownTime, gender: B.gender, name: B.name
+      isLunar: bb.isLunar, unknownTime: bb.unknownTime, gender: B.gender, name: nameB
     });
     if (sa.error || sb.error) return { error: sa.error || sb.error };
-    const r = rng(seedOf(`${A.name}${B.name}${sa.pillars.day.s}${sb.pillars.day.s}${sa.pillars.day.b}${sb.pillars.day.b}`));
+    const r = rng(seedOf(`${nameA}${nameB}${sa.pillars.day.s}${sb.pillars.day.s}${sa.pillars.day.b}${sb.pillars.day.b}`));
 
     const ea = sa.dayMaster.elem, eb = sb.dayMaster.elem;
     const rel = pairRel(ea, eb);
@@ -332,14 +422,13 @@
       hasPair(CHUNG, yBranchA, yBranchB) ? "태어난 해의 기운이 부딪히는 편이라 서로의 가족·생활 방식에서 조율이 필요합니다." :
         "태어난 해의 기운은 무난하게 어울립니다.";
 
-    const score = Math.min(98, Math.max(42, Math.round(baseScore + (r() * 10 - 4))));
-    const parts = [
-      { name: "기질 궁합", v: Math.min(98, Math.max(40, score + Math.round(r() * 12 - 6))) },
-      { name: "대화 궁합", v: Math.min(98, Math.max(40, score + Math.round(r() * 16 - 8))) },
-      { name: "생활 궁합", v: Math.min(98, Math.max(40, score + Math.round(r() * 14 - 7))) },
-      { name: "재물 궁합", v: Math.min(98, Math.max(40, score + Math.round(r() * 18 - 9))) },
-      { name: "장기 안정", v: Math.min(98, Math.max(40, score + Math.round(r() * 12 - 6))) }
-    ];
+    const sajuScore = Math.min(98, Math.max(42, Math.round(baseScore + (r() * 10 - 4))));
+    const nameG = bothNames ? nameGungap(nameA, nameB) : null;
+    /* 둘 다 있으면 종합 — 사주 65% + 이름 35% */
+    const score = nameG ? Math.min(98, Math.max(42, Math.round(sajuScore * 0.65 + nameG.score * 0.35))) : sajuScore;
+    const labels = (relCtx && relCtx.parts) || DEFAULT_PARTS;
+    const jit = [12, 16, 14, 18, 12];
+    const parts = labels.map((nm, i) => ({ name: nm, v: Math.min(98, Math.max(40, score + Math.round(r() * jit[i] - jit[i] / 2))) }));
 
     const goodText = rel === "same" ? "서로가 닮아 있어 설명하지 않아도 통하는 부분이 많습니다. 같은 언어로 이야기할 수 있다는 것이 큰 힘입니다."
       : rel === "give" || rel === "receive" ? "한 사람이 다른 사람을 자연스럽게 북돋아 주는 관계입니다. 서로의 부족한 부분을 정확히 채워 줍니다."
@@ -351,8 +440,9 @@
         : "말하지 않고 넘기는 일이 쌓이면 어느 날 한꺼번에 터집니다. 작은 서운함을 그때그때 꺼내는 편이 오래갑니다.";
 
     return {
-      a: { name: A.name, gender: A.gender, sa: sa }, b: { name: B.name, gender: B.gender, sa: sb },
-      score, parts, branchNote, yearNote, goodText, warnText,
+      mode, rel: relCtx, a: { name: nameA, gender: A.gender, sa: sa }, b: { name: nameB, gender: B.gender, sa: sb },
+      score, sajuScore, parts, nameG, branchNote, yearNote, goodText, warnText,
+      relTitle: relCtx ? relCtx.title : "", relNote: relCtx ? relCtx.note : "",
       elemNote: `${E.ELEM_KR[ea]}(${ea})과 ${E.ELEM_KR[eb]}(${eb})의 만남 — ${rel === "give" ? `${E.ELEM_KR[ea]}이 ${E.ELEM_KR[eb]}을 살리는 상생 관계` : rel === "receive" ? `${E.ELEM_KR[eb]}이 ${E.ELEM_KR[ea]}을 살리는 상생 관계` : rel === "same" ? "같은 기운끼리 만나 힘이 배가되는 관계" : rel === "clash" ? "서로를 제어하는 상극 관계, 조율이 관건" : "서로 다른 기운이 무리 없이 공존하는 관계"}`,
       advice: score >= 85 ? "지금의 온도를 유지하세요. 함께하는 작은 계획 하나가 관계를 더 단단하게 만듭니다."
         : score >= 70 ? "좋은 관계입니다. 다만 서로의 시간을 존중하는 규칙 하나를 정해 두면 오래갑니다."
@@ -369,7 +459,7 @@
     return INIT_ELEM[INIT_LIST[Math.floor(code / 588)]] || "土";
   }
   function nameGungap(nameA, nameB) {
-    const a = nameA.replace(/\s/g, ""), b = nameB.replace(/\s/g, "");
+    const a = String(nameA || "").replace(/\s/g, ""), b = String(nameB || "").replace(/\s/g, "");
     if (!a || !b) return null;
     const ea = initialElem(a[a.length - 1]), eb = initialElem(b[b.length - 1]);
     const rel = pairRel(ea, eb);

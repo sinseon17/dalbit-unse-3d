@@ -21,7 +21,7 @@
     { id: "today", name: "오늘의 운세 마당", short: "오늘", icon: "☀️", x: 277, y: 752, w: 360, h: 356, signY: 432, door: [296, 712] },
     { id: "saju", name: "사주팔자 전각", short: "사주", icon: "☯️", x: 645, y: 306, w: 300, h: 214, signY: 180, door: [742, 360] },
     { id: "tarot", name: "타로 천막", short: "타로", icon: "🔮", x: 405, y: 430, w: 220, h: 180, signY: 254, door: [434, 404] },
-    { id: "naming", name: "작명소", short: "작명", icon: "✏️", x: 563, y: 500, w: 240, h: 186, signY: 342, door: [604, 466] },
+    { id: "naming", name: "작명소 · 이름풀이", short: "작명", icon: "✏️", x: 563, y: 500, w: 240, h: 186, signY: 342, door: [604, 466] },
     { id: "dream", name: "꿈풀이 찻집", short: "꿈풀이", icon: "🍵", x: 1000, y: 500, w: 290, h: 220, signY: 311, door: [1014, 470] },
     { id: "meditation", name: "기도·명상방", short: "명상", icon: "🔔", x: 1103, y: 716, w: 200, h: 234, signY: 528, door: [1102, 700] },
     { id: "gungap", name: "궁합 정원", short: "궁합", icon: "💗", x: 1258, y: 526, w: 210, h: 86, signY: 444, door: [1258, 520] }
@@ -82,7 +82,10 @@
     stand: [700, 700],                 // 걸어가 서는 자리(소원등 터 앞)
     aim: [800, 652],                   // 동전이 떨어지는 수면
     focusX: 780,
-    hit: { cx: 845, cy: 600, rx: 168, ry: 104 }
+    hit: { cx: 845, cy: 600, rx: 168, ry: 104 },
+    /* 연못 한가운데 연잎 행운 분수대 = 동전 던지기 목표 지점 */
+    fountain: [846, 616],
+    fountainTop: [846, 546]
   };
 
   /* 길을 따라 걷는 경로(다익스트라) — 격자 계단이 보이지 않게 살짝 둥글린다 */
@@ -216,6 +219,7 @@
     camX: 430,
     camTarget: 430,
     zoom: 0,
+    zoomWant: null,
     focusBooth: null,
     visitors: [],
     labels: [],
@@ -240,6 +244,7 @@
       this.s0 = this.baseScale();
       this.buildBooths();
       this.buildSpots();
+      this.buildPondTarget();
       this.sizeLanterns();      this.buildMe();
       this.buildVisitors();
       this.buildNpc();
@@ -311,6 +316,38 @@
       });
       this.boothLayer.appendChild(el);
       this.wishEl = el;
+    },
+
+    /* ---------- 연못 한가운데 연잎 행운 분수대 (동전 던지기 목표) ----------
+       물 위에 놓이므로 배경 그림에 그려 넣지 않고 무대 안에 얹는다(카메라를 따라간다).
+       .pf-* 스타일은 assets/css/yard-games.css 에 있다. */
+    buildPondTarget() {
+      if (!this.boothLayer) return;
+      const old = this.boothLayer.querySelector(".pond-fountain");
+      if (old) old.remove();
+      const F = POND.fountain;
+      const el = document.createElement("div");
+      el.className = "pond-fountain";
+      el.setAttribute("aria-hidden", "true");
+      el.style.left = F[0].toFixed(1) + "px";
+      el.style.top = F[1].toFixed(1) + "px";
+      el.style.zIndex = String(Math.round(F[1]) - 4);
+      el.innerHTML =
+        '<span class="pf-glow"></span>' +
+        '<span class="pf-ring"></span>' +
+        '<span class="pf-burst"></span>' +
+        '<span class="pf-body">' +
+          '<i class="pf-petal p1"></i><i class="pf-petal p2"></i><i class="pf-petal p3"></i>' +
+          '<i class="pf-petal p4"></i><i class="pf-petal p5"></i>' +
+          '<i class="pf-base"></i><i class="pf-base-water"></i>' +
+          '<i class="pf-stem"></i>' +
+          '<i class="pf-cup"></i><i class="pf-cup-water"></i>' +
+          '<i class="pf-drop d1"></i><i class="pf-drop d2"></i>' +
+          '<i class="pf-bud"><b></b></i>' +
+        '</span>' +
+        '<span class="pf-tag">🎯 행운 분수대</span>';
+      this.boothLayer.appendChild(el);
+      this.fountainEl = el;
     },
 
     /* 배경 풍등이 화면 높이만큼 떠오르도록 --rise 를 px 로 맞춘다 */
@@ -548,6 +585,7 @@
       const arrive = (delay) => {
         this.me.onDone = null;
         this.me.walking = false;
+        this.me.restT = 3;          // 도착 직후 잠시 그 자리에 서 있게(게임·창이 열리는 동안 거닐지 않게)
         this.layoutActor(this.me);
         this.sparkleAt(sparkX, sparkY, poi === "pond" ? 4 : 6);
         if (delay) setTimeout(() => { cb && cb(); }, delay);
@@ -573,24 +611,103 @@
 
     /* 동전이 주먹에서 수면까지 포물선으로 날아가고, 물걸이 번진다 */
     tossCoin(cb) {
-      if (!this.stage) { cb && cb(); return; }
       const a = POND.aim;
-      const from = { x: this.me.x + (this.me.facing < 0 ? -10 : 10), y: this.me.y - 36 };
-      const dx = a[0] - from.x, dy = a[1] - from.y;
+      this.tossCoinTo(a[0], a[1], {
+        onLand: () => {
+          this.rippleAt(a[0], a[1]);
+          cb && cb();
+        }
+      });
+    },
+
+    /* 지정한 지점까지 동전을 포물선으로 던진다 — 연못 동전 미니게임이 쓴다.
+       opts: { duration, peak, onLand } */
+    tossCoinTo(tx, ty, opts) {
+      if (!this.stage || !this.me) { if (opts && opts.onLand) opts.onLand(); return; }
+      opts = opts || {};
+      const me = this.me;
+      me.facing = (tx >= me.x) ? 1 : -1;
+      this.layoutActor(me);
+      const from = { x: me.x + (me.facing < 0 ? -10 : 10), y: me.y - 38 };
+      const dx = tx - from.x, dy = ty - from.y;
       const coin = document.createElement("span");
-      coin.className = "fx-coin";
+      coin.className = "fx-coin fx-coin-big";
       coin.style.left = from.x.toFixed(1) + "px";
       coin.style.top = from.y.toFixed(1) + "px";
       coin.style.zIndex = "900";
-      coin.style.setProperty("--ex", dx.toFixed(1) + "px");
-      coin.style.setProperty("--ey", dy.toFixed(1) + "px");
-      coin.style.setProperty("--up", (-Math.max(54, Math.abs(dx) * 0.34)).toFixed(1) + "px");
       this.stage.appendChild(coin);
-      setTimeout(() => {
-        coin.remove();
-        this.rippleAt(a[0], a[1]);
-        cb && cb();
-      }, 1020);
+      const dur = opts.duration || 760;
+      const peak = opts.peak || Math.max(54, Math.abs(dx) * 0.44);
+      const t0 = performance.now();
+      const tick = (now) => {
+        const t = Math.min(1, (now - t0) / dur);
+        const x = from.x + dx * t;
+        const y = from.y + dy * t - peak * 4 * t * (1 - t);
+        coin.style.left = x.toFixed(1) + "px";
+        coin.style.top = y.toFixed(1) + "px";
+        coin.style.transform = "rotate(" + (t * 520).toFixed(0) + "deg)";
+        if (t < 1) requestAnimationFrame(tick);
+        else {
+          coin.remove();
+          if (opts.onLand) opts.onLand();
+        }
+      };
+      requestAnimationFrame(tick);
+    },
+
+    /* 분수대에 명중 — 금빛 파열 + 반짝임 + ‘대길 명중!’ 글씨 */
+    fountainHit() {
+      const F = POND.fountain;
+      const el = this.fountainEl;
+      if (el) {
+        el.classList.remove("hit");
+        void el.offsetWidth;
+        el.classList.add("hit");
+        setTimeout(() => el.classList.remove("hit"), 1200);
+      }
+      if (!this.stage) return;
+      for (let i = 0; i < 12; i++) {
+        const s = document.createElement("span");
+        s.className = "fx-spark";
+        s.textContent = ["✨", "💫", "🌟", "✨"][i % 4];
+        s.style.left = (F[0] + rnd(-40, 40)).toFixed(1) + "px";
+        s.style.top = ((F[1] - 62) + rnd(-26, 18)).toFixed(1) + "px";
+        s.style.animationDelay = (i * 0.05).toFixed(2) + "s";
+        s.style.fontSize = rnd(13, 20).toFixed(0) + "px";
+        this.stage.appendChild(s);
+        setTimeout(() => s.remove(), 1600);
+      }
+      this.floatLabel(F[0], F[1] - 150, "🎉 대길 명중!");
+      this.rippleAt(F[0], F[1]);
+    },
+
+    /* 연못에 퐁당 — 물걸 + 물방울 */
+    fountainSplash(x, y) {
+      if (!this.stage) return;
+      this.rippleAt(x, y);
+      for (let i = 0; i < 7; i++) {
+        const s = document.createElement("span");
+        s.className = "fx-spark";
+        s.textContent = ["🫧", "🌊"][i % 2];
+        s.style.left = (x + rnd(-22, 22)).toFixed(1) + "px";
+        s.style.top = (y + rnd(-12, 8)).toFixed(1) + "px";
+        s.style.animationDelay = (i * 0.06).toFixed(2) + "s";
+        s.style.fontSize = rnd(12, 17).toFixed(0) + "px";
+        this.stage.appendChild(s);
+        setTimeout(() => s.remove(), 1600);
+      }
+      this.floatLabel(x, y + 30, "🌊 퐁당!");
+    },
+
+    floatLabel(x, y, text) {
+      if (!this.stage) return;
+      const el = document.createElement("span");
+      el.className = "fx-float";
+      el.textContent = text;
+      el.style.left = x.toFixed(1) + "px";
+      el.style.top = y.toFixed(1) + "px";
+      this.stage.appendChild(el);
+      setTimeout(() => el.remove(), 2000);
     },
 
     rippleAt(x, y) {
@@ -682,7 +799,7 @@
       for (let i = 0; i < (n || 7); i++) {
         const el = document.createElement("span");
         el.className = "fx-spark";
-        el.textContent = ["✨", "⭐", "💫", "✨"][i % 4];
+        el.textContent = ["✨", "💫", "🌟", "✨"][i % 4];
         el.style.left = (x + rnd(-16, 16)).toFixed(1) + "px";
         el.style.top = (y + rnd(-10, 14)).toFixed(1) + "px";
         el.style.animationDelay = (i * 0.06).toFixed(2) + "s";
@@ -691,16 +808,62 @@
       }
     },
 
-    wishLanterns(n) {
-      for (let i = 0; i < (n || 3); i++) {
-        const el = document.createElement("span");
-        el.className = "fx-lantern";
-        el.style.left = (this.tx + this.me.x * this.s + rnd(-60, 60)) + "px";
-        el.style.top = (this.ty + (this.me.y - 120) * this.s) + "px";
-        el.style.animationDelay = (i * 0.35) + "s";
-        this.fxLayer.appendChild(el);
-        setTimeout(() => el.remove(), 7000);
+    /* ---------- 소원등 : 사용자가 쓴 소원 글씨가 등불 몸통에 새겨진 채 하늘로 오른다 ----------
+       지금 서 있는 자리(연못가 소원등 터)의 머리 위에서 출발해 화면 위 끝까지 천천히 떠오르고,
+       작은 등불 두 개가 뒤따라 오른다. (화면 좌표 · #fx 레이어 — 카메라 이동과 무관하게 보인다) */
+    wishLanterns(n, text) {
+      if (!this.stage || !this.me) return;
+      const said = String(text != null ? text : (this.pendingWish || this.latestWish() || "")).trim();
+      if (said) this.pendingWish = said;
+      const me = this.me;
+      const x0 = this.tx + me.x * this.s;
+      /* 등불이 캐릭터를 덮지 않게 머리 위에서 떠오르기 시작한다 */
+      const y0 = this.ty + (me.y - me.h) * this.s - 150;
+      const rise = (this.H || 844) + 220;
+      const len = said.replace(/\s+/g, " ").length;
+      const size = len <= 12 ? "s1" : len <= 22 ? "s2" : len <= 36 ? "s3" : "s4";
+
+      const big = document.createElement("span");
+      big.className = "fx-wish-lantern " + size;
+      big.style.left = x0.toFixed(1) + "px";
+      big.style.top = y0.toFixed(1) + "px";
+      big.style.setProperty("--rise", rise.toFixed(0) + "px");
+      big.innerHTML =
+        '<i class="fwl-halo"></i>' +
+        '<i class="fwl-tail"></i>' +
+        '<i class="fwl-rim top"></i>' +
+        '<i class="fwl-body"><b class="fwl-text">' + this.esc(said || "소원") + '</b></i>' +
+        '<i class="fwl-rim bot"></i>' +
+        '<i class="fwl-flame"></i>';
+      this.fxLayer.appendChild(big);
+      setTimeout(() => big.remove(), 11600);
+
+      /* 뒤따라 오르는 작은 등불 */
+      const nMini = Math.max(0, (n || 1) - 1);
+      for (let i = 0; i < Math.min(3, nMini + 1); i++) {
+        const m = document.createElement("span");
+        m.className = "fx-wish-lantern mini";
+        m.style.left = (x0 + rnd(-78, 78)).toFixed(1) + "px";
+        m.style.top = (y0 + rnd(-6, 56)).toFixed(1) + "px";
+        m.style.setProperty("--rise", rise.toFixed(0) + "px");
+        m.style.animationDelay = (0.5 + i * 0.55).toFixed(2) + "s";
+        m.innerHTML = '<i class="fwl-halo"></i><i class="fwl-tail"></i><i class="fwl-body"></i><i class="fwl-flame"></i>';
+        this.fxLayer.appendChild(m);
+        setTimeout(() => m.remove(), 12800);
       }
+    },
+
+    /* 마지막으로 적은 소원 — app.js 가 저장한 상태에서 읽어 온다 */
+    latestWish() {
+      try {
+        const s = JSON.parse(global.localStorage ? localStorage.getItem("dalbit_fortune_v2") || "{}" : "{}");
+        const w = s && s.mini && s.mini.wishes && s.mini.wishes[0];
+        return w && w.text ? String(w.text) : "";
+      } catch (e) { return ""; }
+    },
+
+    esc(s) {
+      return String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
     },
 
     visitorsInfo() {
@@ -855,7 +1018,7 @@
       this.camTarget = this.manualT > 0 ? this.camTarget : clamp(target, this.minCamX(), this.maxCamX());
       this.camX = lerp(this.camX, this.camTarget, 1 - Math.exp(-dt * 3.4));
 
-      const wantZoom = focus ? 1 : 0;
+      const wantZoom = (this.zoomWant != null) ? this.zoomWant : (focus ? 1 : 0);
       this.zoom = lerp(this.zoom, wantZoom, 1 - Math.exp(-dt * 2.2));
       this.applyCamera();
     },

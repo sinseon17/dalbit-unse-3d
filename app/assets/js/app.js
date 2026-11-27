@@ -167,6 +167,101 @@
      공통 UI
      ============================================================ */
   let wishMic = null;          // 소원등 '말로 쓰기' 인식기 (창을 닫으면 멈춘다)
+
+  /* ---------- 말로 쓰기 (Web Speech) — 꿈풀이·궁합 공용 ----------
+     칸에 말한 내용을 받아 적는다. 다른 방으로 옮기거나 화면을 다시 그리면 바로 멈춘다. */
+  const STT = {
+    cur: null,                 // { rec, btn, input, scope, idle, live, aria, max }
+    ok() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); },
+    active(scope) { return !!this.cur && (!scope || this.cur.scope === scope); },
+    ui(s, on) {
+      const b = s.btn;
+      if (!b) return;
+      b.classList.toggle("on", !!on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      b.setAttribute("aria-label", on ? "말로 쓰기 그만두기" : s.aria);
+      b.textContent = on ? s.live : s.idle;
+    },
+    stop(scope, msg) {
+      const s = this.cur;
+      if (!s || (scope && s.scope !== scope)) return;
+      this.cur = null;
+      try { s.rec.stop(); } catch (e) { }   // 마지막으로 한 말까지 확정되도록 차분히 멈춘다
+      this.ui(s, false);
+      if (msg) toast(msg);
+    },
+    start(cfg) {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const input = $(cfg.input), btn = $(cfg.btn);
+      if (!SR || !input || !btn) return;
+      let rec;
+      try { rec = new SR(); } catch (e) { toast("이 기기에서는 말로 쓰기를 쓸 수 없어요"); return; }
+      const s = {
+        rec, btn, input, scope: cfg.scope, max: cfg.max || 0,
+        idle: cfg.idle || "🎙️ 말로 쓰기", live: cfg.live || "🎙️ 듣는 중…",
+        aria: cfg.aria || "말로 쓰기"
+      };
+      this.cur = s;
+      rec.lang = "ko-KR";
+      rec.interimResults = true;
+      rec.continuous = true;
+      rec.maxAlternatives = 1;
+      let done = (input.value || "").trim();   // 이미 적힌 글 뒤에 이어 붙인다
+      let said = "";                            // 듣고 있는 중인 말
+      const paint = () => {
+        let v = (done + (said ? " " + said : "")).trim();
+        if (s.max && v.length > s.max) v = v.slice(0, s.max);
+        input.value = v;
+        input.dispatchEvent(new Event("input"));
+      };
+      rec.onresult = (e) => {
+        let interim = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const r = e.results[i];
+          if (r.isFinal) {
+            const t = String(r[0].transcript || "").trim();
+            if (t) done = (done ? done + " " : "") + t;
+          } else {
+            interim += r[0].transcript;
+          }
+        }
+        said = interim.trim();
+        paint();
+      };
+      rec.onerror = (e) => {
+        const err = e && e.error;
+        const map = {
+          "not-allowed": "마이크 사용을 허락해 주세요",
+          "service-not-allowed": "이 브라우저에서는 말로 쓰기를 쓸 수 없어요",
+          "no-speech": "잘 알아듣지 못했어요 · 다시 말씀해 주세요",
+          "audio-capture": "마이크를 찾지 못했어요 · 기기 마이크를 확인해 주세요",
+          "network": "음성 인식에 닿지 못했어요 · 잠시 뒤 다시 시도해 주세요"
+        };
+        if (err !== "aborted") toast(map[err] || "음성 입력이 멈췄어요 · 다시 눌러 주세요");
+      };
+      rec.onend = () => {
+        if (this.cur !== s) return;
+        this.cur = null;
+        this.ui(s, false);
+      };
+      try { rec.start(); } catch (e) { this.cur = null; this.ui(s, false); toast("말로 쓰기를 시작하지 못했어요"); return; }
+      this.ui(s, true);
+      toast(cfg.tip || "🎙️ 말씀하시면 그 칸에 받아 적어요", 3000);
+    }
+  };
+
+  /* 마이크 버튼을 칸에 붙인다 — 미지원 브라우저에서는 버튼을 숨긴다 */
+  function setupMic(cfg) {
+    const btn = $(cfg.btn), input = $(cfg.input);
+    if (!btn || !input) return;
+    if (!STT.ok()) { btn.hidden = true; return; }
+    btn.hidden = false;
+    btn.onclick = () => {
+      if (STT.active(cfg.scope)) { STT.stop(cfg.scope); return; }
+      STT.stop();                                   // 다른 칸에서 듣던 것은 멈춘다
+      STT.start(cfg);
+    };
+  }
   function openSheet(html) {
     const ov = $("#overlay");
     $("#sheetBody").innerHTML = html;
@@ -211,6 +306,13 @@
     if (!h) return;
     if (t) t.textContent = text;
     h.hidden = false;
+  }
+  /* 받침이 있으면 '으로', 없으면 '로' — "작명소 · 이름풀이로 걸어가는 중" */
+  function josaRo(word) {
+    const ch = String(word || "").trim().slice(-1);
+    const code = ch.charCodeAt(0);
+    if (code >= 0xAC00 && code <= 0xD7A3) return ((code - 0xAC00) % 28) ? "으로" : "로";
+    return "로";
   }
   function hideWalkHint() {
     const h = $("#walkHint");
@@ -438,11 +540,21 @@
   /* ============================================================
      2) 사주팔자
      ============================================================ */
-  function birthForm(idPrefix, prefill) {
+  function birthForm(idPrefix, prefill, opt) {
     const b = prefill || null;
+    const o = opt || {};
+    const optional = !!o.optional;      // 궁합: 생년월일을 몰라도(이름만으로도) 볼 수 있게
     const now = new Date();
     const years = [];
     for (let y = now.getFullYear(); y >= 1930; y--) years.push(y);
+    const sel = (v, cur) => (cur !== null && cur !== undefined && cur !== "" && +cur === +v ? " selected" : "");
+    const by = b ? b.y : null, bm = b ? b.m : null, bd = b ? b.d : null;
+    const bh = b ? b.hour : null, bmi = b ? b.minute : null;
+    const female = !b || b.gender !== "male";
+    const lunar = !!(b && b.isLunar);
+    const unk = !!(b && b.unknownTime);
+    const months = Array.from({ length: 12 }, (_, i) => i + 1);
+    const days = Array.from({ length: 31 }, (_, i) => i + 1);
     return `
       <div class="field">
         <label class="label">이름</label>
@@ -451,33 +563,33 @@
       <div class="field">
         <label class="label">성별</label>
         <div class="seg" id="${idPrefix}-gender">
-          <button type="button" data-v="female" class="on">여성</button>
-          <button type="button" data-v="male">남성</button>
+          <button type="button" data-v="female" class="${female ? "on" : ""}">여성</button>
+          <button type="button" data-v="male" class="${female ? "" : "on"}">남성</button>
         </div>
       </div>
       <div class="field">
         <label class="label">양력 / 음력</label>
         <div class="seg" id="${idPrefix}-cal">
-          <button type="button" data-v="solar" class="on">양력</button>
-          <button type="button" data-v="lunar">음력</button>
+          <button type="button" data-v="solar" class="${lunar ? "" : "on"}">양력</button>
+          <button type="button" data-v="lunar" class="${lunar ? "on" : ""}">음력</button>
         </div>
       </div>
       <div class="field">
-        <label class="label">생년월일</label>
+        <label class="label">생년월일${optional ? ` <span class="tiny" style="font-weight:400">(몰라도 괜찮아요)</span>` : ""}</label>
         <div class="row-3">
-          <select class="select" id="${idPrefix}-y">${years.map(y => `<option value="${y}">${y}년</option>`).join("")}</select>
-          <select class="select" id="${idPrefix}-m">${Array.from({ length: 12 }, (_, i) => i + 1).map(m => `<option value="${m}">${m}월</option>`).join("")}</select>
-          <select class="select" id="${idPrefix}-d">${Array.from({ length: 31 }, (_, i) => i + 1).map(d => `<option value="${d}">${d}일</option>`).join("")}</select>
+          <select class="select" id="${idPrefix}-y" aria-label="태어난 해">${optional ? `<option value="">연도</option>` : ""}${years.map(y => `<option value="${y}"${sel(y, by)}>${y}년</option>`).join("")}</select>
+          <select class="select" id="${idPrefix}-m" aria-label="태어난 달">${optional ? `<option value="">월</option>` : ""}${months.map(m => `<option value="${m}"${sel(m, bm)}>${m}월</option>`).join("")}</select>
+          <select class="select" id="${idPrefix}-d" aria-label="태어난 날">${optional ? `<option value="">일</option>` : ""}${days.map(d => `<option value="${d}"${sel(d, bd)}>${d}일</option>`).join("")}</select>
         </div>
       </div>
       <div class="field">
         <label class="label">태어난 시간 <span class="tiny">(모르면 아래를 체크)</span></label>
         <div class="row-2">
-          <select class="select" id="${idPrefix}-h">${Array.from({ length: 24 }, (_, i) => `<option value="${i}">${String(i).padStart(2, "0")}시</option>`).join("")}</select>
-          <select class="select" id="${idPrefix}-mi">${[0, 10, 20, 30, 40, 50].map(m => `<option value="${m}">${String(m).padStart(2, "0")}분</option>`).join("")}</select>
+          <select class="select" id="${idPrefix}-h">${Array.from({ length: 24 }, (_, i) => `<option value="${i}"${sel(i, bh)}>${String(i).padStart(2, "0")}시</option>`).join("")}</select>
+          <select class="select" id="${idPrefix}-mi">${[0, 10, 20, 30, 40, 50].map(m => `<option value="${m}"${sel(m, bmi)}>${String(m).padStart(2, "0")}분</option>`).join("")}</select>
         </div>
         <label style="display:flex;align-items:center;gap:10px;margin-top:11px;font-size:14px;color:var(--ink-soft)">
-          <input type="checkbox" id="${idPrefix}-unknown" style="width:20px;height:20px;accent-color:#f0a93c"> 시간을 모릅니다 (시주 제외)
+          <input type="checkbox" id="${idPrefix}-unknown" style="width:20px;height:20px;accent-color:#f0a93c"${unk ? " checked" : ""}> 시간을 모릅니다 (시주 제외)
         </label>
       </div>`;
   }
@@ -497,9 +609,12 @@
     const gender = ($(`#${prefix}-gender .on`) || {}).dataset ? $(`#${prefix}-gender .on`).dataset.v : "female";
     const isLunar = $(`#${prefix}-cal .on`) && $(`#${prefix}-cal .on`).dataset.v === "lunar";
     const unknownTime = $(`#${prefix}-unknown`) ? $(`#${prefix}-unknown`).checked : false;
+    const y = +($(`#${prefix}-y`) || {}).value || 0;
+    const m = +($(`#${prefix}-m`) || {}).value || 0;
+    const d = +($(`#${prefix}-d`) || {}).value || 0;
     return {
       name: name.trim(), gender, isLunar, unknownTime,
-      y: +$(`#${prefix}-y`).value, m: +$(`#${prefix}-m`).value, d: +$(`#${prefix}-d`).value,
+      y, m, d, hasBirth: !!(y && m && d),
       hour: +$(`#${prefix}-h`).value, minute: +$(`#${prefix}-mi`).value
     };
   }
@@ -905,96 +1020,146 @@
   function renderGungap() {
     const el = $("#screen-gungap");
     if (G.step === 1) {
+      const last = S.lastGungap || null;
+      /* 지난번에 적은 이름·생년월일은 그대로 채워 둔다 (다시 입력이 편하게) */
+      const preA = last && last.a ? { ...last.a }
+        : (S.profile ? { ...S.profile.birth, name: S.profile.name, gender: S.profile.gender } : null);
+      const preB = last && last.b ? { ...last.b } : null;
+      const relVal = last && last.rel ? last.rel : "";
+      const REL_CHIPS = ["연인", "부부", "부모와 자녀", "친구", "직장 동료"];
       el.innerHTML = `
         ${consult("gungap", HOSTS.gungap.greet)}
         <div style="margin-top:14px">
           <div class="eyebrow">宮合</div>
           <div class="h-title" style="margin-top:4px">궁합</div>
-          <p class="h-sub">사주 궁합과 이름 궁합을 함께 봅니다.<br>연인·부부·가족·동업 상대까지.</p>
+          <p class="h-sub">이름만 적어도, 생년월일까지 넣으면 더 깊이.<br>연인·부부·가족·동업 상대까지.</p>
           
         </div>
         <div class="card" style="margin-top:13px">
           <div class="eyebrow">첫 번째 사람</div>
-          <div style="margin-top:9px">${birthForm("ga", null)}</div>
+          <div style="margin-top:9px">${birthForm("ga", preA, { optional: true })}</div>
         </div>
         <div class="card">
           <div class="eyebrow">두 번째 사람</div>
-          <div style="margin-top:9px">${birthForm("gb", null)}</div>
+          <div style="margin-top:9px">${birthForm("gb", preB, { optional: true })}</div>
+        </div>
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px">
+            <label class="label" for="gg-rel" style="margin-bottom:0">두 사람의 관계 <span class="tiny" style="font-weight:400">(선택)</span></label>
+            <button class="chip plain" id="btnGungapMic" type="button" hidden
+              aria-label="말로 두 사람의 관계 쓰기" aria-pressed="false">🎙️ 말로 쓰기</button>
+          </div>
+          <input class="input" id="gg-rel" maxlength="20" value="${esc(relVal)}"
+            placeholder="예) 연인 · 부부 · 친구">
+          <div class="chips" style="margin-top:9px">
+            ${REL_CHIPS.map(t => `<button class="chip plain" type="button" data-rel="${t}">${t}</button>`).join("")}
+          </div>
+          <p class="tiny" style="margin:8px 0 0">비워 두어도 괜찮아요. 적어 주시면 그 관계에 맞춰 풀이를 다듬어 드립니다.</p>
         </div>
         <button class="btn" id="btnGungap" style="margin-top:16px">궁합 보기</button>
-        <p class="tiny center" style="margin-top:10px">이름은 이름 궁합에, 생년월일은 사주 궁합에 쓰입니다.</p>
+        <p class="tiny center" style="margin-top:10px">이름만 적으면 이름 궁합, 생년월일을 고르면 사주 궁합까지 함께 봅니다.</p>
         <p class="disclaimer">궁합은 두 사람의 기질과 흐름을 비교한 참고 콘텐츠입니다. 관계를 단정하지 않습니다.</p>
       `;
       bindBirthForm("ga"); bindBirthForm("gb");
-      if (S.profile) {
-        $("#ga-name").value = S.profile.name || "";
-        $("#ga-y").value = S.profile.birth.y; $("#ga-m").value = S.profile.birth.m; $("#ga-d").value = S.profile.birth.d;
-        $("#ga-h").value = S.profile.birth.hour;
-        if (S.profile.gender === "male") $$("#ga-gender button").forEach(b => b.classList.toggle("on", b.dataset.v === "male"));
-      }
+
+      /* 말로 쓰기 — 마이크로 말해 관계 칸에 받아 적는다 (미지원 브라우저는 버튼 숨김) */
+      setupMic({
+        scope: "gungap", btn: "#btnGungapMic", input: "#gg-rel", max: 20,
+        aria: "말로 두 사람의 관계 쓰기", tip: "🎙️ 말씀하시면 관계 칸에 받아 적어요"
+      });
+
+      const relIn = $("#gg-rel");
+      const relChips = $$("#screen-gungap .chip[data-rel]");
+      const syncRelChips = () => relChips.forEach(c => c.classList.toggle("on", c.dataset.rel === relIn.value.trim()));
+      relChips.forEach(c => c.onclick = () => {
+        const t = c.dataset.rel;
+        relIn.value = relIn.value.trim() === t ? "" : t;
+        relIn.dispatchEvent(new Event("input"));
+        syncRelChips();
+      });
+      relIn.addEventListener("input", syncRelChips);
+      syncRelChips();
+
       $("#btnGungap").onclick = () => {
+        if (STT.active("gungap")) STT.stop("gungap");     // 말하다 만 내용까지 칸에 남긴 뒤 읽는다
         const a = readBirthForm("ga"), b = readBirthForm("gb");
-        if (!a.name || !b.name) { toast("두 사람의 이름을 모두 적어 주세요"); return; }
+        const relText = (relIn.value || "").trim();
+        const canName = !!(a.name && b.name);
+        const canBirth = a.hasBirth && b.hasBirth;
+        if (!canName && !canBirth) {
+          toast(a.name || b.name
+            ? "두 사람의 이름을 모두 적거나, 생년월일을 모두 골라 주세요"
+            : "두 사람의 이름이나 생년월일을 적어 주세요");
+          return;
+        }
         talk("gungap", NOD_LINE.gungap);
-        showLoading("두 사람의 기운을 맞춰 보는 중", "사주와 이름을 함께 살펴보고 있어요");
+        showLoading("두 사람의 기운을 맞춰 보는 중", canBirth ? "사주와 이름을 함께 살펴보고 있어요" : "이름의 소리와 획수를 살펴보고 있어요");
         setTimeout(() => {
           hideLoading();
-          const res = C.gungap(a, b);
+          const res = C.gungap(a, b, { rel: relText });
           if (res.error) { toast(res.error); return; }
-          res.nameG = C.nameGungap(a.name, b.name);
-          S.lastGungap = { a, b, res };
+          S.lastGungap = { a, b, res, rel: relText };
           S.usage.gungapRuns = (S.usage.gungapRuns || 0) + 1;
           save();
           G.step = 2;
           renderGungap();
-        }, 1300);
+        }, canBirth ? 1300 : 900);
       };
       bindBokchaeButtons(el);
       return;
     }
 
     const { res } = S.lastGungap;
+    const mode = res.mode || "both";
+    const tag = mode === "both" ? "사주 + 이름" : mode === "saju" ? "사주" : "이름";
+    const nmA = res.a.name || "첫 번째 사람", nmB = res.b.name || "두 번째 사람";
+    const dayOf = (p) => (p && p.sa && p.sa.pillars && p.sa.pillars.day)
+      ? `${E.CHEONGAN_KR[p.sa.pillars.day.s]}${E.GANJI_KR[p.sa.pillars.day.b]}일간` : "이름으로 봄";
     el.innerHTML = `
       <button class="chip plain" id="btnGungapBack">← 다시 입력</button>
-      <div class="eyebrow" style="margin-top:14px">宮合 · 사주 + 이름</div>
+      <div class="eyebrow" style="margin-top:14px">宮合 · ${tag}</div>
+      ${res.relTitle ? `<div class="chips" style="margin-top:8px"><span class="pill gold">${esc(res.relTitle)}</span></div>` : ""}
       <div class="card gold-edge" style="margin-top:12px">
         <div class="compat-head">
           <div class="compat-person">
-            <div class="avatar">${esc(res.a.name.slice(0, 1))}</div>
-            <div class="nm">${esc(res.a.name)}</div>
-            <div class="sc">${E.CHEONGAN_KR[res.a.sa.pillars.day.s]}${E.GANJI_KR[res.a.sa.pillars.day.b]}일간</div>
+            <div class="avatar">${esc((res.a.name || "①").slice(0, 1))}</div>
+            <div class="nm">${esc(nmA)}</div>
+            <div class="sc">${dayOf(res.a)}</div>
           </div>
           <div class="heart">♥</div>
           <div class="compat-person">
-            <div class="avatar">${esc(res.b.name.slice(0, 1))}</div>
-            <div class="nm">${esc(res.b.name)}</div>
-            <div class="sc">${E.CHEONGAN_KR[res.b.sa.pillars.day.s]}${E.GANJI_KR[res.b.sa.pillars.day.b]}일간</div>
+            <div class="avatar">${esc((res.b.name || "②").slice(0, 1))}</div>
+            <div class="nm">${esc(nmB)}</div>
+            <div class="sc">${dayOf(res.b)}</div>
           </div>
         </div>
         <div class="gauge-ring" style="margin-top:16px">
           ${ring(res.score, 132, 10)}
           <div class="val"><span>${res.score}<small>점</small></span></div>
         </div>
-        <p class="center small" style="margin:9px 0 0">${res.elemNote}</p>
+        ${res.elemNote ? `<p class="center small" style="margin:9px 0 0">${esc(res.elemNote)}</p>` : ""}
       </div>
 
+      ${res.parts ? `
       <div class="card">
         <div class="section-title" style="margin-top:0">영역별 궁합</div>
         ${res.parts.map(p => `
           <div class="stat-line" style="margin-top:9px">
-            <div style="color:var(--ink-soft);font-size:13.5px">${p.name}</div>
+            <div style="color:var(--ink-soft);font-size:13.5px">${esc(p.name)}</div>
             <div class="track"><div class="fill" style="width:${p.v}%"></div></div>
             <div style="text-align:right;font-size:13.5px">${p.v}</div>
           </div>`).join("")}
-      </div>
+      </div>` : ""}
 
+      ${mode !== "name" ? `
       <div class="card">
         <div class="section-title" style="margin-top:0">사주로 보는 궁합</div>
-        <p class="small" style="margin:0 0 9px">${res.branchNote}</p>
-        <p class="small" style="margin:0 0 9px">${res.yearNote}</p>
-        <p class="small" style="margin:0">${res.goodText}</p>
-      </div>
+        <p class="small" style="margin:0 0 9px">${esc(res.branchNote)}</p>
+        <p class="small" style="margin:0 0 9px">${esc(res.yearNote)}</p>
+        <p class="small" style="margin:0">${esc(res.goodText)}</p>
+      </div>` : ""}
 
+      ${res.nameG ? `
       <div class="card">
         <div class="section-title" style="margin-top:0">이름 궁합</div>
         <div class="name-card">
@@ -1002,17 +1167,37 @@
           <div class="name-meaning">끝소리 기운 ${E.ELEM_KR[N.eumryeong(res.a.name[res.a.name.length - 1])]}</div>
           <div class="name-hanja" style="font-size:22px">${esc(res.b.name)}</div>
         </div>
-        <p class="small" style="margin:9px 0 0">${res.nameG.text}</p>
-      </div>
+        <p class="small" style="margin:9px 0 0">${esc(res.nameG.text)}</p>
+      </div>` : ""}
+
+      ${res.nameParts ? `
+      <div class="card">
+        <div class="section-title" style="margin-top:0">이름으로 보는 두 사람</div>
+        ${res.nameParts.map((p, i) => `
+          <div style="margin-top:${i ? 12 : 4}px">
+            <div class="eyebrow" style="font-size:11px">${esc(p.label)}</div>
+            <p class="small" style="margin:4px 0 0">${esc(p.text)}</p>
+          </div>`).join("")}
+      </div>` : ""}
 
       <div class="card tint-mint">
         <div class="eyebrow">달빛의 조언</div>
-        <p class="advice-quote" style="margin-top:8px">${res.advice}</p>
-        <p class="small" style="margin:10px 0 0">${res.warnText}</p>
+        <p class="advice-quote" style="margin-top:8px">${esc(res.advice)}</p>
+        ${res.warnText ? `<p class="small" style="margin:10px 0 0">${esc(res.warnText)}</p>` : ""}
+        ${res.relNote ? `<p class="small" style="margin:10px 0 0">${esc(res.relNote)}</p>` : ""}
       </div>
+
+      ${mode === "name" && res.nudge ? `
+      <div class="card">
+        <div class="eyebrow">한 걸음 더</div>
+        <p class="small" style="margin:6px 0 0">${esc(res.nudge)}</p>
+        <button class="btn ghost sm" id="btnGungapMore" style="margin-top:12px">생년월일 넣고 더 깊이 보기</button>
+      </div>` : ""}
       <p class="disclaimer">궁합은 두 사람의 기질과 흐름을 비교한 참고 콘텐츠입니다. 관계를 단정하지 않습니다.</p>
     `;
     $("#btnGungapBack").onclick = () => { G.step = 1; renderGungap(); };
+    const more = $("#btnGungapMore");
+    if (more) more.onclick = () => { G.step = 1; renderGungap(); };
     bindBokchaeButtons(el);
   }
 
@@ -1246,7 +1431,10 @@
      6) 꿈풀이
      ============================================================ */
   const DR = { result: null, text: "" };
+  function stopDreamMic(msg) { STT.stop("dream", msg); }   // 방을 나가거나 화면을 다시 그리면 멈춘다
+
   function renderDream() {
+    stopDreamMic();            // 화면을 다시 그리면 듣던 것은 멈춘다
     const el = $("#screen-dream");
     if (!DR.result) {
       el.innerHTML = `
@@ -1259,7 +1447,11 @@
         </div>
         <div class="card" style="margin-top:13px">
           <div class="field">
-            <label class="label">꿈 내용</label>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px">
+              <label class="label" for="dr-text" style="margin-bottom:0">꿈 내용</label>
+              <button class="chip plain" id="btnDreamMic" type="button" hidden
+                aria-label="말로 꿈 내용 쓰기" aria-pressed="false">🎙️ 말로 쓰기</button>
+            </div>
             <textarea class="input" id="dr-text" rows="5" style="min-height:128px;line-height:1.7"
               placeholder="예) 커다란 돼지가 집 안으로 들어와서 안았어요. 기분은 좋았습니다."></textarea>
           </div>
@@ -1271,7 +1463,13 @@
         <p class="tiny center" style="margin-top:10px">꿈은 미래를 단정하지 않습니다. 마음을 비추는 거울로 읽어 주세요.</p>
         <p class="disclaimer">꿈풀이는 전통 해몽 이론에 기반한 참고 콘텐츠입니다.</p>
       `;
+      /* 말로 쓰기 — 마이크로 말하면 꿈 내용 칸에 받아 적는다 (미지원 브라우저는 버튼 숨김) */
+      setupMic({
+        scope: "dream", btn: "#btnDreamMic", input: "#dr-text",
+        aria: "말로 꿈 내용 쓰기", tip: "🎙️ 말씀하시면 꿈 내용 칸에 받아 적어요"
+      });
       $$("#screen-dream .chip[data-ex]").forEach(b => b.onclick = () => {
+        if (STT.active("dream")) stopDreamMic();
         $("#dr-text").value = b.dataset.ex.replace(" 꿈", "") + " 꿈을 꿨습니다.";
         $$("#screen-dream .chip[data-ex]").forEach(x => x.classList.remove("on"));
         b.classList.add("on");
@@ -1686,10 +1884,11 @@
   /* ============================================================
      라우팅
      ============================================================ */
+  /* 배경음은 마을에서만 — 방(오늘의 운세·사주·타로·궁합·작명·꿈풀이·명상방)에
+     들어가면 새소리를 포함한 자동 배경음이 모두 멈추고, 방 안에서는
+     사용자가 직접 누른 효과음·음성만 울린다. */
   function bgmFor(tab) {
-    if (tab === "meditation") return "meditation";
-    if (["saju", "tarot", "gungap", "naming", "dream", "today"].includes(tab)) return "consult";
-    return "village";
+    return tab === "village" ? "village" : null;
   }
 
   const DONATE_BTN = {
@@ -1735,7 +1934,7 @@
       if (!b) { this.go(tab); return; }
       if (W.overview) { W.toggleOverview(false); syncMapBtn(); }
       walking = true;
-      showWalkHint(`${b.icon} ${b.name}으로 걸어가는 중…`);
+      showWalkHint(`${b.icon} ${b.name}${josaRo(b.name)} 걸어가는 중…`);
       W.walkTo(tab, () => {
         walking = false;
         hideWalkHint();
@@ -1750,6 +1949,7 @@
       if (W && W.ready) W.leave();
     },
     go(tab) {
+      STT.stop();                            // 방을 옮기면 듣던 마이크는 바로 멈춘다
       if (tab === "naming-check") { NM.tab = "check"; NM.result = null; tab = "naming"; }
       const leavingMed = $("#screen-meditation") && !$("#screen-meditation").classList.contains("hidden");
       if (leavingMed && tab !== "meditation") M.unmount($("#screen-meditation"));

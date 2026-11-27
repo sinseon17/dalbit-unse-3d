@@ -602,21 +602,71 @@
      소리로 읽기 (Web Speech Synthesis)
      ============================================================ */
   const speechOK = () => typeof global.speechSynthesis !== "undefined" && typeof global.SpeechSynthesisUtterance !== "undefined";
-  let voiceKo = null;
   let speaking = null;      // { kind:'qa'|'screen'|'sheet', idx }
   let autoRead = true;
 
   try { autoRead = localStorage.getItem(LS_AUTO) !== "0"; } catch (e) { }
 
-  function pickVoice() {
+  /* ---------- 읽어 주는 목소리 — 방(선생님)마다 다르다 ----------
+     · doctor : 사주팔자 전각의 도사님 — 중후하고 차분한 남성 한국어 음성
+                pitch 0.74(낮은 톤) · rate 0.86(여유롭고 점잖은 말투)
+     · naming : 작명·이름 풀이의 작명 선생님 — 나이가 지긋한 할머니의
+                온화하고 나긋한 여성 한국어 음성
+                pitch 0.85 · rate 0.82(천천히 다정하게)
+     기기에 원하는 성별의 한국어 음성이 없으면(안드로이드 기본 TTS 등)
+     있는 한국어 음성에 음 높이·속도를 걸어 그 톤에 가깝게 만든다.     */
+  const PERSONAS = {
+    doctor: { pitch: 0.74, rate: 0.86, want: "male", label: "도사님" },
+    naming: { pitch: 0.85, rate: 0.82, want: "female", label: "작명 선생님" }
+  };
+  const VOICE_FEMALE = /(female|woman|girl|여성|yuna|sora|sunhi|jihye|ayeon|seoyeon|heami|jiwoo|유나|선희|서연|지혜|아연|해미)/i;
+  const VOICE_MALE = /(\bmale\b|\bman\b|남성|남자|injoon|injun|hyunsu|minsu|bong|jinho|ism|kod|koc|ko-?[cd]\b|인준|현수|민수|봉준|진호)/i;
+
+  // 지금 보고 있는 방의 선생님 — 작명·이름 풀이는 작명 선생님, 그 밖은 도사님
+  function personaNow() {
+    const scr = visibleScreen();
+    return scr && scr.id === "screen-naming" ? "naming" : "doctor";
+  }
+  function persona(name) { return PERSONAS[name] || PERSONAS.doctor; }
+
+  function isKoreanVoice(v) {
+    const lang = String((v && v.lang) || "");
+    const name = String((v && v.name) || "");
+    return /^ko(\b|[-_])/i.test(lang) || /korean|한국어/i.test(name + " " + ((v && v.voiceURI) || ""));
+  }
+
+  /* 점수가 높을수록 그 선생님 목소리에 가깝다.
+     원하는 성별 +3 · 반대 성별 -3 (도사님=남성, 작명 선생님=여성), 기기 내장 +1 · 기본 +0.5 */
+  function voiceScore(v, want) {
+    const name = String((v && v.name) || "") + " " + String((v && v.voiceURI) || "");
+    const isM = VOICE_MALE.test(name);
+    const isF = VOICE_FEMALE.test(name);
+    let sc = 0;
+    if (want === "female") { if (isF) sc += 3; if (isM) sc -= 3; }
+    else { if (isM) sc += 3; if (isF) sc -= 3; }
+    if (v && v.localService) sc += 1;
+    if (v && v.default) sc += 0.5;
+    return sc;
+  }
+
+  function pickVoice(name) {
     if (!speechOK()) return null;
-    const vs = global.speechSynthesis.getVoices() || [];
-    voiceKo = vs.filter((v) => /^ko(\b|-|_)/i.test(v.lang) || /korean/i.test(v.name))[0] || null;
-    return voiceKo;
+    const want = persona(name).want;
+    let vs = [];
+    try { vs = global.speechSynthesis.getVoices() || []; } catch (e) { vs = []; }
+    const ko = vs.filter(isKoreanVoice);
+    if (!ko.length) return null;
+    let best = ko[0];
+    let bestSc = voiceScore(best, want);
+    for (let i = 1; i < ko.length; i++) {
+      const sc = voiceScore(ko[i], want);
+      if (sc > bestSc) { best = ko[i]; bestSc = sc; }
+    }
+    return best;
   }
   if (speechOK()) {
-    pickVoice();
-    global.speechSynthesis.onvoiceschanged = pickVoice;
+    pickVoice("doctor");
+    global.speechSynthesis.onvoiceschanged = function () { pickVoice(personaNow()); };
   }
 
   function readable(s) {
@@ -641,17 +691,26 @@
     syncSpeechUI();
   }
 
-  function speak(text, kind, idx) {
-    if (!speechOK()) { note("이 브라우저에서는 소리 읽기를 지원하지 않소. 글로 읽어 주시오."); return; }
+  function speak(text, kind, idx, who) {
+    if (!speechOK()) {
+      note(personaNow() === "naming"
+        ? "이 브라우저에서는 소리로 듣기가 어려워요. 글로 천천히 읽어 보세요."
+        : "이 브라우저에서는 소리 읽기를 지원하지 않소. 글로 읽어 주시오.");
+      return;
+    }
     const body = readable(text);
     if (!body) return;
+    const name = who || personaNow();
+    const p = persona(name);
     stopSpeak();
     try {
       const u = new global.SpeechSynthesisUtterance(body);
       u.lang = "ko-KR";
-      u.rate = 0.97;
-      u.pitch = 0.95;
-      if (pickVoice()) u.voice = voiceKo;
+      u.rate = p.rate;
+      u.pitch = p.pitch;
+      u.volume = 1;
+      const v = pickVoice(name);
+      if (v) { u.voice = v; if (v.lang) u.lang = v.lang; }
       u.onend = () => { if (speaking && speaking.kind === kind && speaking.idx === idx) { speaking = null; syncSpeechUI(); } };
       u.onerror = () => { if (speaking && speaking.kind === kind) { speaking = null; syncSpeechUI(); } };
       speaking = { kind: kind, idx: idx };
@@ -660,9 +719,9 @@
     syncSpeechUI();
   }
 
-  function toggleSpeak(text, kind, idx) {
+  function toggleSpeak(text, kind, idx, who) {
     if (speaking && speaking.kind === kind && speaking.idx === idx) stopSpeak();
-    else speak(text, kind, idx);
+    else speak(text, kind, idx, who);
   }
 
   /* ---------- 화면의 풀이 결과 읽기 ---------- */
@@ -711,9 +770,9 @@
       el.addEventListener("click", () => {
         const scr = visibleScreen();
         const txt = collectText(scr, 1300);
-        if (!txt) { note("읽어 드릴 풀이가 아직 없소."); return; }
+        if (!txt) { note(personaNow() === "naming" ? "읽어 드릴 풀이가 아직 없어요." : "읽어 드릴 풀이가 아직 없소. 글로 읽어 주시오."); return; }
         if (speaking && speaking.kind === "screen") stopSpeak();
-        else speak(txt, "screen", 0);
+        else speak(txt, "screen", 0, personaNow());
       });
       room.appendChild(el);
     }
@@ -738,7 +797,7 @@
     el.innerHTML = '<span class="i">🔊</span> 결과 소리로 듣기';
     el.addEventListener("click", () => {
       if (speaking && speaking.kind === "sheet") stopSpeak();
-      else speak(collectText(body, 1100), "sheet", 0);
+      else speak(collectText(body, 1100), "sheet", 0, personaNow());
     });
     const grab = body.querySelector(".grabber");
     if (grab && grab.nextSibling) body.insertBefore(el, grab.nextSibling);
@@ -1013,7 +1072,7 @@
       const i = +b.dataset.i;
       const m = thread[i];
       if (!m) return;
-      toggleSpeak(msgText(m), "qa", i);
+      toggleSpeak(msgText(m), "qa", i, "doctor");
     });
 
     el.querySelector("#sqaForm").addEventListener("submit", (ev) => {
@@ -1101,7 +1160,7 @@
       scrollCardIntoView();
       if (autoRead) {
         const idx = thread.length - 1;
-        speak(msgText(thread[idx]), "qa", idx);
+        speak(msgText(thread[idx]), "qa", idx, "doctor");
       }
     }, 1320);
   }
@@ -1162,7 +1221,15 @@
     const next = [roomOn, ovOn, scrId, hasResult].join("|");
 
     const fab = ensureFab();
-    if (fab) fab.hidden = !(roomOn && hasResult);
+    if (fab) {
+      fab.hidden = !(roomOn && hasResult);
+      const p = persona(personaNow());
+      const label = p.label + " 목소리로 듣기";
+      if (fab.getAttribute("aria-label") !== label) {
+        fab.setAttribute("aria-label", label);
+        fab.title = label;
+      }
+    }
 
     if (speaking && speaking.kind === "screen" && next !== sig) stopSpeak();
     if (speaking && speaking.kind === "sheet" && !ovOn) stopSpeak();
@@ -1191,7 +1258,10 @@
   global.SajuQA = {
     refresh: refresh,
     ask: function (q) { refresh(); if (card) ask(q); },
-    stop: stopSpeak
+    stop: stopSpeak,
+    persona: function () { return personaNow(); },               // 지금 방의 선생님(doctor|naming)
+    voice: function (who) { return pickVoice(who || personaNow()); },   // 그 선생님 목소리
+    tone: function (who) { const p = persona(who || personaNow()); return { pitch: p.pitch, rate: p.rate, want: p.want, label: p.label }; }
   };
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount);

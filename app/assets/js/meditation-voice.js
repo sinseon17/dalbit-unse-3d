@@ -13,8 +13,8 @@
   "use strict";
 
   const KEY = "dalbit_med_voice";     // '0' 이면 꺼짐 (기본 켜짐)
-  const RATE = 0.84;                  // 차분하게
-  const PITCH = 0.95;                 // 조금 낮게
+  const RATE = 0.80;                  // 남자 스님처럼 느긋하고 편안하게
+  const PITCH = 0.78;                 // 남자 스님의 차분하고 낮은 목소리
   const doc = global.document || null;
 
   let enabled = true;
@@ -42,23 +42,46 @@
     } catch (e) { return false; }
   }
 
-  /* ---------- 목소리 고르기 (한국어 · 되도록 기기 안 목소리) ---------- */
+  /* ---------- 목소리 고르기 (한국어 · 남자 스님 목소리를 먼저) ---------- */
+  const VOICE_FEMALE = /(female|woman|girl|여성|yuna|sora|sunhi|jihye|ayeon|seoyeon|heami|jiwoo|유나|선희|서연|지혜|아연|해미)/i;
+  const VOICE_MALE = /(\bmale\b|\bman\b|남성|남자|injoon|injun|hyunsu|minsu|bong|jinho|ism|kod|koc|ko-?[cd]\b|인준|현수|민수|봉준|진호)/i;
+
   function listVoices() {
     const s = synth();
     if (!s || typeof s.getVoices !== "function") return [];
     try { return s.getVoices() || []; } catch (e) { return []; }
   }
 
+  function isKorean(v) {
+    const lang = String((v && v.lang) || "");
+    const name = String((v && v.name) || "") + " " + String((v && v.voiceURI) || "");
+    return /^ko([-_]|$)/i.test(lang) || /korean|한국어/i.test(name);
+  }
+
+  // 점수가 높을수록 남자 스님 목소리에 가깝다 (남성 +3 · 여성 -3 · 기기 내장 +1 · 기본 +0.5)
+  function score(v) {
+    const name = String((v && v.name) || "") + " " + String((v && v.voiceURI) || "");
+    let sc = 0;
+    if (VOICE_MALE.test(name)) sc += 3;
+    if (VOICE_FEMALE.test(name)) sc -= 3;
+    if (v && v.localService) sc += 1;
+    if (v && v.default) sc += 0.5;
+    return sc;
+  }
+
   function pickVoice() {
     const all = listVoices();
-    if (voiceCache && all.indexOf(voiceCache) !== -1) return voiceCache;
-    const ko = all.filter(v => /^ko([-_]|$)/i.test(v.lang || ""));
+    if (voiceCache && all.indexOf(voiceCache) !== -1 && score(voiceCache) >= 3) return voiceCache;
+    const ko = all.filter(isKorean);
     if (!ko.length) return null;
-    const local = ko.filter(v => v.localService);
-    const pool = local.length ? local : ko;
-    const v = pool.find(x => x.default) || pool[0] || null;
-    voiceCache = v;
-    return v;
+    let best = ko[0];
+    let bestSc = score(best);
+    for (let i = 1; i < ko.length; i++) {
+      const sc = score(ko[i]);
+      if (sc > bestSc) { best = ko[i]; bestSc = sc; }
+    }
+    voiceCache = best;
+    return best;
   }
 
   /* ---------- 말하기 ---------- */
