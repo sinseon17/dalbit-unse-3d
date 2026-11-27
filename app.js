@@ -1094,6 +1094,35 @@ function moveChar(c, dt) {
 const camTargetPos = new THREE.Vector3();
 const focusGoal = new THREE.Vector3();
 
+// 카메라가 석등·석탑·소나무·법당을 뚫고 들어가지 않도록 하는 간단한 충돌체
+const camBlockers = [
+  { p: new THREE.Vector3(-6.2, 1.5, 6.6), r: 1.45 },
+  { p: new THREE.Vector3(6.2, 1.5, 6.6), r: 1.45 },
+  { p: new THREE.Vector3(12.6, 2.0, -4.2), r: 2.2 },
+  { p: new THREE.Vector3(0, 3.4, -16), r: 8.2 },
+  { p: new THREE.Vector3(-10, 2.4, -4.6), r: 0.7 },
+  { p: new THREE.Vector3(10, 2.4, -4.6), r: 0.7 },
+  { p: new THREE.Vector3(-16.5, 2.2, -7.5), r: 1.9 },
+  { p: new THREE.Vector3(16.5, 2.2, -8.5), r: 1.9 },
+  { p: new THREE.Vector3(-18.5, 2.2, 4.5), r: 1.7 },
+  { p: new THREE.Vector3(18.0, 2.2, 4.0), r: 1.8 },
+  { p: new THREE.Vector3(-12.5, 2.2, 13.0), r: 1.6 },
+  { p: new THREE.Vector3(13.0, 2.2, 13.5), r: 1.7 },
+];
+const camOcc = new THREE.Vector3();
+const camDir = new THREE.Vector3();
+const camOrigin = new THREE.Vector3();
+function raySphere(o, d, c, r) {
+  camOcc.subVectors(o, c);
+  const b = camOcc.dot(d);
+  const cc = camOcc.lengthSq() - r * r;
+  const disc = b * b - cc;
+  if (disc < 0) return -1;
+  const sq = Math.sqrt(disc);
+  const t1 = -b - sq, t2 = -b + sq;
+  return t1 > 0.1 ? t1 : (t2 > 0.1 ? t2 : -1);
+}
+
 function updateCamera(dt) {
   const chars = activeChars().filter(c => c.root.visible);
   focusGoal.set(0, 0, 0);
@@ -1111,6 +1140,22 @@ function updateCamera(dt) {
     state.focus.z + Math.cos(state.camYaw) * cp * dist
   );
   camTargetPos.y = Math.max(camTargetPos.y, 0.9);
+
+  // 충돌 시 카메라를 앞으로 당김
+  camOrigin.set(state.focus.x, state.focus.y + 0.25, state.focus.z);
+  camDir.subVectors(camTargetPos, camOrigin);
+  let camLen = camDir.length();
+  if (camLen > 0.001) {
+    camDir.divideScalar(camLen);
+    for (let i = 0; i < camBlockers.length; i++) {
+      const b = camBlockers[i];
+      const t = raySphere(camOrigin, camDir, b.p, b.r);
+      if (t > 0 && t < camLen) camLen = Math.max(2.2, t - 0.45);
+    }
+    camTargetPos.copy(camOrigin).addScaledVector(camDir, camLen);
+    camTargetPos.y = Math.max(camTargetPos.y, 0.9);
+  }
+
   camera.position.lerp(camTargetPos, damp(dt, 6));
   camera.lookAt(state.focus.x, state.focus.y + 0.15, state.focus.z);
 
