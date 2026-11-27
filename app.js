@@ -135,7 +135,7 @@ const sky = new THREE.Mesh(
 scene.add(sky);
 
 const moon = new THREE.Group();
-moon.position.set(-34, 30, -115);
+moon.position.set(-13, 26, -118);
 const moonBody = new THREE.Mesh(
   new THREE.SphereGeometry(6.5, 32, 24),
   new THREE.MeshBasicMaterial({ color: 0xfff6dd, fog: false })
@@ -1112,7 +1112,7 @@ function updateCamera(dt) {
   camera.lookAt(state.focus.x, state.focus.y + 0.15, state.focus.z);
 
   // 시선에 따라 별·달이 살짝 흔들리는 느낌
-  moon.position.x = -34 + Math.sin(state.camYaw * 0.2) * 4;}
+  moon.position.x = -13 + Math.sin(state.camYaw * 0.2) * 4;}
 
 /* ============================================================
    UI
