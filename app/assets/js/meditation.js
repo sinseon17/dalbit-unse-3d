@@ -1,11 +1,12 @@
 /* ============================================================
    달빛 운세 · meditation.js
    기도 · 명상방 — 싱잉볼 / 목탁 / 빗소리 + 호흡 가이드 타이머 + 소원 촛불
-   (모든 소리는 Web Audio 로 즉석 합성 · 음원 파일 없음)
+   싱잉볼·목탁은 실제 녹음 파일(assets/audio/), 빗소리는 합성음
    ============================================================ */
 (function (global) {
   "use strict";
 
+  const A = global.DalbitAudio;
   let ac = null;
   let master = null;
   const loops = { bowl: null, moktak: null, rain: null };
@@ -22,6 +23,7 @@
       master = ac.createGain();
       master.gain.value = 0.9;
       master.connect(ac.destination);
+      if (A && A.preload && A.FILES) A.preload(ac, [A.FILES.bowl, A.FILES.moktak].filter(Boolean));
     }
     if (ac.state === "suspended") ac.resume();
     return ac;
@@ -41,46 +43,41 @@
   }
 
   /* ---------- 싱잉볼 ---------- */
-  function bowlOnce() {
-    // 배음이 살짝 어긋나며 길게 울리는 종소리
-    ping(528, 7.0, 0.16, "sine", 0);
-    ping(528 * 2.01, 5.0, 0.055, "sine", 0.02);
-    ping(528 * 2.98, 3.6, 0.028, "sine", 0.05);
-    ping(264, 6.0, 0.04, "sine", 0);
+  function bowlOnce(when) {
+    audio();
+    const synth = () => {
+      if (A && A.bowl) A.bowl(ac, master, { freq: 196, gain: 0.20, wet: 0.30, when: when || 0 });
+      else ping(528, 7.0, 0.12, "sine", when || 0);
+    };
+    if (A && A.playOnce && A.FILES && A.FILES.bowl) {
+      A.playOnce(ac, master, A.FILES.bowl, { gain: 0.34, when: when || 0, onFail: synth });
+    } else {
+      synth();
+    }
   }
   function startBowl() {
     audio();
     bowlOnce();
-    loops.bowl = setInterval(bowlOnce, 11000);
-    // 은은한 지속 울림
-    const a = audio();
-    const o = a.createOscillator(), g = a.createGain(), lfo = a.createOscillator(), lg = a.createGain();
-    o.type = "sine"; o.frequency.value = 132;
-    g.gain.value = 0.016;
-    lfo.frequency.value = 0.12; lg.gain.value = 0.008;
-    lfo.connect(lg); lg.connect(g.gain);
-    o.connect(g); g.connect(master);
-    o.start(); lfo.start();
-    loops.bowlDrone = { o, lfo, g };
+    loops.bowl = setInterval(bowlOnce, 9500);   // 여운이 긴 만큼 조금 띄워서
   }
   function stopBowl() {
     clearInterval(loops.bowl); loops.bowl = null;
-    if (loops.bowlDrone) {
-      try {
-        loops.bowlDrone.g.gain.setTargetAtTime(0, audio().currentTime, 0.4);
-        loops.bowlDrone.o.stop(audio().currentTime + 1.2);
-        loops.bowlDrone.lfo.stop(audio().currentTime + 1.2);
-      } catch (e) { }
-      loops.bowlDrone = null;
-    }
   }
 
   /* ---------- 목탁 ---------- */
   function moktakOnce() {
-    ping(430, 0.11, 0.2, "triangle", 0);
-    ping(310, 0.1, 0.09, "sine", 0.015);
+    audio();
+    const synth = () => {
+      if (A && A.moktak) A.moktak(ac, master, { freq: 500, gain: 0.30, wet: 0.14 });
+      else ping(430, 0.11, 0.14, "triangle", 0);
+    };
+    if (A && A.playOnce && A.FILES && A.FILES.moktak) {
+      A.playOnce(ac, master, A.FILES.moktak, { gain: 0.55, onFail: synth });
+    } else {
+      synth();
+    }
   }
-  function startMoktak() { audio(); moktakOnce(); loops.moktak = setInterval(moktakOnce, 1700); }
+  function startMoktak() { audio(); moktakOnce(); loops.moktak = setInterval(moktakOnce, 1800); }
   function stopMoktak() { clearInterval(loops.moktak); loops.moktak = null; }
 
   /* ---------- 빗소리 ---------- */
@@ -135,15 +132,23 @@
   }
 
   /* ---------- 호흡 가이드 ---------- */
+  /* 화면에 보이는 문구(text)와 귀로 들려주는 문구(say)를 따로 둔다.
+     화면은 "…로 이어지는" 호흡의 흐름을 보여 주고, 말은 완결된 문장으로 또박또박 읽는다. */
   const BREATH = [
-    { text: "숨을 깊게 들이마시고…", ms: 4000 },
-    { text: "잠시 멈추고…", ms: 2000 },
-    { text: "천천히 내쉬세요…", ms: 6000 }
+    { text: "숨을 깊게 들이마시고…", say: "숨을 천천히 들이쉬세요", ms: 4000 },
+    { text: "잠시 멈추고…", say: "잠시 멈추세요", ms: 2000 },
+    { text: "천천히 내쉬세요…", say: "천천히 내쉬세요", ms: 6000 }
   ];
+  /* 음성 안내는 meditation-voice.js 가 맡는다 (없으면 조용히 넘어간다) */
+  function voice() { return global.DalbitBreathVoice || null; }
+  function voiceSay(t) { const v = voice(); if (v) { try { v.speak(t); } catch (e) { } } }
+  function voiceStop() { const v = voice(); if (v) { try { v.stop(); } catch (e) { } } }
+
   function breathLoop(render) {
     let i = 0;
     const step = () => {
       render(BREATH[i].text);
+      voiceSay(BREATH[i].say || BREATH[i].text);
       breathTimer = setTimeout(() => { i = (i + 1) % BREATH.length; step(); }, BREATH[i].ms);
     };
     step();
@@ -182,6 +187,7 @@
     clearInterval(timer); timer = null;
     clearTimeout(breathTimer); breathTimer = null;
     running = false;
+    voiceStop();   // 하던 호흡 안내를 바로 끊는다
     const btn = opts && opts.btn;
     if (btn) { btn.textContent = "명상 시작"; btn.classList.remove("soft"); }
     if (!finished && opts && opts.breathEl) opts.breathEl.innerHTML = `<span class="breath-dot"></span>준비되면 명상을 시작해 보세요`;
@@ -220,13 +226,32 @@
       });
     });
     const candle = root.querySelector("#medCandle");
-    if (candle) candle.addEventListener("click", () => {
+    const candleBtn = root.querySelector("#medCandleBtn");
+    const candleTip = root.querySelector("#medCandleTip");
+    const syncCandle = () => {
+      const lit = !!(candle && candle.classList.contains("lit"));
+      if (candleTip) candleTip.hidden = lit;
+      if (candleBtn) {
+        candleBtn.classList.toggle("lit", lit);
+        candleBtn.setAttribute("aria-pressed", lit ? "true" : "false");
+        candleBtn.setAttribute("aria-label", lit ? "촛불 끄기" : "소원 촛불 켜기");
+        const b = candleBtn.querySelector("b");
+        if (b) b.textContent = lit ? "촛불 끄기" : "촛불 켜기";
+      }
+    };
+    const toggleCandle = () => {
+      if (!candle) return;
       candle.classList.toggle("lit");
-      if (candle.classList.contains("lit")) {
+      const lit = candle.classList.contains("lit");
+      syncCandle();
+      if (lit) {
         ping(660, 1.6, 0.1, "sine", 0);
         if (opts.toast) opts.toast("소원 촛불을 밝혔습니다 🕯️");
       } else if (opts.toast) opts.toast("촛불을 껐습니다");
-    });
+    };
+    if (candle) candle.addEventListener("click", toggleCandle);
+    if (candleBtn) candleBtn.addEventListener("click", toggleCandle);
+    syncCandle();
     const startBtn = root.querySelector("#medStart");
     if (startBtn) startBtn.addEventListener("click", () => {
       startTimer({
@@ -234,7 +259,7 @@
         breathEl: root.querySelector("#medBreath"),
         btn: startBtn,
         onEnd: () => {
-          bowlOnce(); setTimeout(bowlOnce, 900); setTimeout(bowlOnce, 1800);
+          bowlOnce(); setTimeout(() => bowlOnce(), 2300); setTimeout(() => bowlOnce(), 4600);
           if (opts.toast) opts.toast("명상을 마쳤습니다 · 마음이 조금 가벼워지길");
           if (opts.onFinish) opts.onFinish();
         }

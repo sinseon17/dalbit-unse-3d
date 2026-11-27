@@ -138,6 +138,143 @@ body { background: #cfe9ff; }
 .booth:active .b-sign { transform: translate(-50%, -100%) translateY(1px) scale(.985); }
 .booth:focus-visible .b-sign { outline: 3px solid #ffe6a8; outline-offset: 3px; }
 
+/* ---------- 배경 풍등 (하늘로 천천히 떠오르는 루프) ----------
+   마을 그림 위·HUD 아래에 깔리는 장식 레이어. 클릭은 통과시킨다.
+   바깥 .sl 이 위로 떠오르고(translateY), 안쪽 i 가 좌우로 살랑이며 흔들린다. */
+.sky-lanterns {
+  --rise: 780px;
+  position: absolute; inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+.sky-lanterns .sl {
+  position: absolute;
+  left: var(--x, 50%);
+  bottom: var(--b, 18%);
+  width: var(--w, 13px);
+  height: calc(var(--w, 13px) * 1.34);
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: skyRise var(--d, 45s) linear var(--dl, 0s) infinite;
+}
+.sky-lanterns .sl > i {
+  display: block; width: 100%; height: 100%;
+  border-radius: 42% 42% 34% 34% / 26% 26% 40% 40%;
+  background:
+    radial-gradient(ellipse at 50% 32%, #fffdf2 0%, #ffe9b8 30%, #ffc56c 60%, #f09a33 84%, #d9832a 100%);
+  box-shadow:
+    inset 0 0 0 1.5px rgba(210, 122, 32, .34),
+    inset 0 -3px 5px rgba(198, 108, 26, .34),
+    inset 0 3px 5px rgba(255, 248, 218, .55),
+    0 0 7px 2px rgba(255, 216, 136, .85),
+    0 0 20px 7px rgba(255, 176, 72, .42),
+    0 0 38px 14px rgba(255, 158, 50, .16);
+  animation: skySway var(--sd, 6s) ease-in-out infinite alternate;
+}
+/* 등불 아래 불구명 · 위에는 한지 꾸김이 */
+.sky-lanterns .sl > i::after {
+  content: ""; position: absolute; left: 50%; bottom: 9%;
+  width: 30%; height: 7%; transform: translateX(-50%);
+  border-radius: 50%;
+  background: rgba(140, 70, 12, .42);
+}
+@keyframes skyRise {
+  0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0; }
+  8% { opacity: var(--o, .7); }
+  55% { opacity: calc(var(--o, .7) * .92); }
+  86% { opacity: calc(var(--o, .7) * .58); }
+  100% { transform: translate3d(0, calc(-1 * var(--rise)), 0) scale(.6); opacity: 0; }
+}
+@keyframes skySway {
+  from { transform: translateX(calc(-1 * var(--sw, 7px))) rotate(-3deg); }
+  to { transform: translateX(var(--sw, 7px)) rotate(3deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sky-lanterns { display: none; }
+}
+
+/* ---------- 연못가 소원등 터 (등대 + 현판 마커) ----------
+   .spot 상자의 아래 가운데가 마을 지도 위 제자리(x,y)에 놓인다. */
+.spot {
+  position: absolute;
+  width: 170px; height: 100px;
+  padding: 0; border: 0; background: none;
+  transform: translateX(-50%);
+  transform-origin: 50% 100%;
+  cursor: pointer;
+  pointer-events: none;            /* 빈 상자 영역은 지도 탭·드래그를 막지 않는다 */
+  -webkit-tap-highlight-color: transparent;
+}
+.spot .sp-glow,
+.spot .sp-post,
+.spot .sp-lamp,
+.spot .sp-base,
+.spot .sp-sign { pointer-events: auto; }
+.spot .sp-glow {
+  position: absolute; left: 50%; bottom: -8px;
+  width: 96px; height: 30px; transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 50%, rgba(255, 203, 112, .62) 0%, rgba(255, 178, 70, .30) 46%, rgba(255, 170, 60, 0) 74%);
+  animation: spotGlow 3.8s ease-in-out infinite;
+}
+@keyframes spotGlow {
+  0%, 100% { opacity: .6; transform: translateX(-50%) scale(.94); }
+  50% { opacity: 1; transform: translateX(-50%) scale(1.08); }
+}
+.spot .sp-post {
+  position: absolute; left: 50%; bottom: 0;
+  width: 13px; height: 31px; transform: translateX(-50%);
+  border-radius: 3px 3px 2px 2px;
+  background: linear-gradient(180deg, #b07a41 0%, #8a5a2a 48%, #653d16 100%);
+  box-shadow: 0 3px 7px rgba(40, 24, 6, .4), inset -2px 0 0 rgba(255, 226, 170, .2);
+}
+.spot .sp-base {
+  position: absolute; left: 50%; bottom: -3px;
+  width: 28px; height: 7px; transform: translateX(-50%);
+  border-radius: 3px;
+  background: linear-gradient(180deg, #9b6a34, #6b4218);
+  box-shadow: 0 2px 5px rgba(40, 24, 6, .35);
+}
+.spot .sp-lamp {
+  position: absolute; left: 50%; bottom: 24px;
+  width: 23px; height: 21px; transform: translateX(-50%);
+  border-radius: 42% 42% 34% 34% / 28% 28% 40% 40%;
+  background: radial-gradient(ellipse at 50% 30%, #fffdf0 0%, #ffe9b8 30%, #ffc56c 60%, #f09a33 86%, #dd872c 100%);
+  box-shadow:
+    inset 0 -3px 5px rgba(198, 108, 26, .3),
+    inset 0 3px 5px rgba(255, 248, 218, .5),
+    0 0 7px 2px rgba(255, 216, 136, .9),
+    0 0 18px 6px rgba(255, 176, 72, .45),
+    0 0 32px 10px rgba(255, 160, 50, .18);
+  animation: spotLamp 3.8s ease-in-out infinite;
+}
+@keyframes spotLamp {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.16); }
+}
+.spot .sp-sign {
+  position: absolute; left: 50%; bottom: 52px;
+  transform: translateX(-50%);
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 11px 6px 9px;
+  border-radius: 8px;
+  border: 2.5px solid #e0b877;
+  background:
+    linear-gradient(180deg, rgba(255, 238, 200, .24) 0%, rgba(255, 214, 150, 0) 52%),
+    linear-gradient(180deg, #8a5a2c 0%, #6d431c 54%, #512d10 100%);
+  box-shadow: 0 6px 14px rgba(38, 22, 6, .45), inset 0 0 0 2px rgba(255, 226, 170, .18);
+  color: #ffeac2;
+  font-family: var(--font-title);
+  font-size: 13px; line-height: 1; letter-spacing: -.2px;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(30, 16, 4, .6), 0 0 10px rgba(255, 206, 120, .4);
+}
+.spot .sp-sign i { font-style: normal; font-size: 12px; }
+.spot:active .sp-sign { transform: translateX(-50%) translateY(1px) scale(.98); }
+.spot:focus-visible .sp-sign { outline: 3px solid #ffe6a8; outline-offset: 3px; }
+
 /* ---------- 이펙트 ---------- */
 .fx { position: absolute; inset: 0; z-index: 6; pointer-events: none; overflow: hidden; }
 .fx-heart {
@@ -171,6 +308,39 @@ body { background: #cfe9ff; }
   0% { opacity: 0; transform: translateY(0) scale(.8); }
   15% { opacity: 1; }
   100% { opacity: 0; transform: translateY(-46vh) translateX(18px) scale(1.15); }
+}
+
+/* 연못 동전 — 포물선으로 날아가고 물걸이 번진다 (무대 안 좌표) */
+.fx-coin {
+  position: absolute; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #fffbe0, #ffd66d 52%, #e0a12c 100%);
+  box-shadow: 0 0 10px 2px rgba(255, 206, 108, .95), 0 0 22px 6px rgba(255, 180, 70, .35);
+  pointer-events: none;
+  animation: coinArc 1.02s cubic-bezier(.32, .06, .78, .6) forwards;
+}
+@keyframes coinArc {
+  0% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
+  48% { transform: translate(calc(var(--ex) * .48), var(--up)) rotate(200deg) scale(1.06); opacity: 1; }
+  100% { transform: translate(var(--ex), var(--ey)) rotate(460deg) scale(.82); opacity: .95; }
+}
+.fx-ripple {
+  position: absolute; width: 16px; height: 8px; margin: -4px 0 0 -8px;
+  border: 2px solid rgba(228, 252, 255, .9); border-radius: 50%;
+  box-shadow: 0 0 8px rgba(190, 240, 255, .5);
+  pointer-events: none;
+  animation: rippleOut 1.9s ease-out forwards;
+}
+@keyframes rippleOut {
+  0% { transform: scale(.35); opacity: 0; }
+  18% { opacity: .95; }
+  100% { transform: scale(4.4); opacity: 0; }
+}
+.fx-lantern::after {
+  content: ""; position: absolute; left: 50%; bottom: -2px;
+  width: 5px; height: 5px; transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff6cf 0%, rgba(255, 205, 110, 0) 74%);
 }
 
 /* ---------- 3D 이름표 · 말풍선 ---------- */
@@ -481,6 +651,12 @@ body { background: #cfe9ff; }
   animation: panelIn .3s cubic-bezier(.3, 1.4, .5, 1);
 }
 .yard-panel[hidden] { display: none; }
+/* 연못 동전 행운 카드 — 연못과 캐릭터를 가리지 않게 위쪽에 띄운다 */
+.yard-panel.vp-mid {
+  top: max(92px, calc(env(safe-area-inset-top) + 84px));
+  bottom: auto;
+  max-height: 46%;
+}
 .yard-panel::-webkit-scrollbar { display: none; }
 .yard-panel .yp-close {
   position: absolute; right: 10px; top: 9px;

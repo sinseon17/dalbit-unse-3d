@@ -30,6 +30,7 @@
   } catch (e) { }
   S.usage = S.usage || {};
   S.mini = Object.assign({ moktak: 0, beads: 0, wishes: [] }, S.mini || {});
+  if (typeof S.mini.lanterns !== "number") S.mini.lanterns = (S.mini.wishes || []).length || 0;
   S.bokchae = S.bokchae || [];
 
   function save() {
@@ -85,7 +86,7 @@
     naming: {
       label: "작명 정성", btn: "✍️ 작명 정성 보태기", title: "작명 정성",
       sub: "좋은 이름을 고른 정성을 보태 주세요",
-      msg: "아이의 이름에 담긴 뜻을 함께 골랐어요. 작명 선생님께 정성을 보태 주세요."
+      msg: "이름에 담긴 뜻을 함께 골랐어요. 작명 선생님께 정성을 보태 주세요."
     },
     gungap: {
       label: "인연 복채", btn: "💕 인연 복채 나누기", title: "인연 복채",
@@ -165,12 +166,17 @@
   /* ============================================================
      공통 UI
      ============================================================ */
+  let wishMic = null;          // 소원등 '말로 쓰기' 인식기 (창을 닫으면 멈춘다)
   function openSheet(html) {
     const ov = $("#overlay");
     $("#sheetBody").innerHTML = html;
     ov.classList.add("on");
   }
-  function closeSheet() { $("#overlay").classList.remove("on"); }
+
+  function closeSheet() {
+    if (wishMic) { try { wishMic.abort(); } catch (e) { } wishMic = null; }
+    $("#overlay").classList.remove("on");
+  }
 
   function setTab(tab) {
     $$("#dock button").forEach(b => b.classList.toggle("on", b.dataset.tab === tab));
@@ -227,7 +233,7 @@
     saju: { img: "sage-saju.webp", name: "사주 도사님", greet: "어서 오세요~ 이름과 생년월일을 써 주세요!" },
     tarot: { img: "sage-tarot.webp", name: "타로 술사", greet: "마음을 가다듬고 카드 3장을 골라 보세요~" },
     dream: { img: "sage-dream.webp", name: "찻집 주인", greet: "오늘 어떤 꿈을 꾸셨나요?" },
-    naming: { img: "sage-naming.webp", name: "작명 선생님", greet: "아이에게 어떤 이름을 선물할까요?" },
+    naming: { img: "sage-naming.webp", name: "작명 선생님", greet: "어떤 이름을 지어 드릴까요?" },
     gungap: { img: "sage-gungap.webp", name: "궁합 선생님", greet: "두 사람의 이야기를 들려주세요~" }
   };
   const NOD_LINE = {
@@ -650,104 +656,167 @@
   }
 
   /* ============================================================
-     3) 타로
+     3) 타로 — 펼쳐진 카드 중에서 사용자가 직접 골라 뒤집는다
      ============================================================ */
-  const T = { drawn: [], topic: null, deep: false };
+  const T = { drawn: [], topic: null, deep: false, spread: [], busy: false };
+  const cardArt = (n) => `assets/img/tarot/tarot-${String(n).padStart(2, "0")}.webp`;
+  const TAROT_SPREAD_N = 7;
+
+  // 덱에서 서로 다른 카드 n장을 뽑아 섞는다 (역방향 약 3할)
+  function makeSpread(n) {
+    const pool = window.TAROT_DECK.slice();
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+    }
+    return pool.slice(0, n).map(card => ({ card, reversed: Math.random() > 0.68 }));
+  }
+
+  // 뒷면만 보이는 카드
+  function tarotBackHTML() {
+    return `<div class="tcard"><div class="inner"><div class="face back"></div><div class="face front"></div></div></div>`;
+  }
+
+  // 앞면(생성한 타로 일러스트)까지 그린 카드
+  function tarotCardHTML(pick, extra) {
+    return `<div class="tcard flipped ${extra || ""}">
+      <div class="inner">
+        <div class="face back"></div>
+        <div class="face front"><img class="${pick.reversed ? "rev" : ""}" src="${cardArt(pick.card.n)}" alt="${esc(pick.card.ko)} 타로 카드" draggable="false"></div>
+      </div>
+    </div>`;
+  }
+
+  // 3장 자리 — 아직 비었으면 점선 자리, 고르면 그 카드
+  function pickSlotHTML(pick, i) {
+    const pos = T.topic.positions[i];
+    if (!pick) {
+      return `<div class="pick-slot empty" data-k="${i}">
+        <div class="ph"><div><b>✧</b>${pos}</div></div>
+        <div class="slot-label">${i + 1}번째 자리</div>
+      </div>`;
+    }
+    return `<div class="pick-slot" data-k="${i}">
+      ${tarotCardHTML(pick)}
+      <div class="slot-label">${pos}</div>
+    </div>`;
+  }
+
+  // 카드를 뒤집는 소리 (짧은 종이 마찰음)
+  let tarotAc = null;
+  function tarotFlipSfx() {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      tarotAc = tarotAc || new AC();
+      if (tarotAc.state === "suspended") tarotAc.resume();
+      const ctx = tarotAc, dur = 0.26;
+      const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) {
+        const p = i / d.length;
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - p, 2.6) * Math.min(1, p * 14);
+      }
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 2100; bp.Q.value = 0.7;
+      const g = ctx.createGain(); g.gain.value = 0.09;
+      src.connect(bp); bp.connect(g); g.connect(ctx.destination);
+      src.start(ctx.currentTime);
+    } catch (e) { }
+  }
+
   function renderTarot() {
     const el = $("#screen-tarot");
+
+    /* ---- 1. 고민 분야 고르기 ---- */
     if (!T.topic) {
       el.innerHTML = `
         ${consult("tarot", HOSTS.tarot.greet)}
         <div style="margin-top:14px">
           <div class="eyebrow">Tarot · 메이저 아르카나</div>
           <div class="h-title" style="margin-top:4px">타로 카드</div>
-          <p class="h-sub">지금 가장 궁금한 분야를 고르고,<br>카드 3장을 직접 뽑아 보세요.</p>
-          
+          <p class="h-sub">지금 가장 궁금한 분야를 고르고,<br>펼쳐진 카드 중에서 세 장을 직접 골라 보세요.</p>
         </div>
         <div class="section-title">고민 분야</div>
         <div class="chips">
           ${window.TAROT_TOPICS.map(t => `<button class="chip" data-topic="${t.id}">${t.icon} ${t.label}</button>`).join("")}
         </div>
         <div class="tarot-stage">
-          <div class="tarot-deck">
-            ${[0, 1, 2].map(() => `<div class="tcard"><div class="inner"><div class="face back"><div class="emblem">☾</div><div class="deco">DALBIT</div></div><div class="face front"></div></div></div>`).join("")}
-          </div>
+          <div class="tarot-deck">${[0, 1, 2].map(() => tarotBackHTML()).join("")}</div>
         </div>
-        <p class="tiny center">카드를 한 장씩 눌러도 되고, 버튼으로 한 번에 뽑아도 됩니다.</p>
+        <p class="tiny center">분야를 고르면 카드가 펼쳐집니다</p>
       `;
       $$("#screen-tarot .chip[data-topic]").forEach(b => b.onclick = () => {
         T.topic = window.TAROT_TOPICS.find(t => t.id === b.dataset.topic);
-        T.drawn = []; T.deep = false;
+        T.drawn = []; T.deep = false; T.spread = makeSpread(TAROT_SPREAD_N); T.busy = false;
         renderTarot();
       });
       bindBokchaeButtons(el);
       return;
     }
 
-    if (!T.drawn.length) {
+    /* ---- 2. 직접 카드 고르기 ---- */
+    if (T.drawn.length < 3) {
+      if (!T.spread.length) T.spread = makeSpread(TAROT_SPREAD_N);
+      const pos = T.topic.positions;
       el.innerHTML = `
         <button class="chip plain" id="btnTarotBack">← 분야 다시 고르기</button>
         <div class="eyebrow" style="margin-top:14px">${T.topic.icon} ${T.topic.label}</div>
-        <div class="h-title" style="margin-top:4px;font-size:22px">카드를 섞었어요</div>
-        <p class="h-sub">${T.topic.positions.join(" · ")}<br>세 장을 뽑아 과거·현재·앞으로의 흐름을 봅니다.</p>
-        <div class="tarot-stage">
-          <div class="tarot-deck" id="deck">
-            ${Array.from({ length: 5 }).map((_, i) => `
-              <div class="tcard dealing" data-i="${i}" style="animation-delay:${i * 0.05}s;margin-left:${i ? -44 : 0}px">
-                <div class="inner"><div class="face back"><div class="emblem">☾</div><div class="deco">DALBIT</div></div><div class="face front"></div></div>
-              </div>`).join("")}
-          </div>
+        <div class="h-title" style="margin-top:4px;font-size:23px">카드를 직접 골라 주세요</div>
+        <p class="h-sub">뒷면 카드 ${T.spread.length}장이 펼쳐져 있어요.<br>마음이 끌리는 카드를 한 장씩 눌러 뒤집어 보세요.</p>
+
+        <div class="tarot-picks" id="picks">
+          ${pos.map((p, i) => pickSlotHTML(T.drawn[i], i)).join("")}
         </div>
-        <p class="tiny center">카드를 눌러 3장을 뽑아 주세요</p>
-        <button class="btn" id="btnDraw" style="margin-top:12px">카드 3장 뽑기</button>
+
+        <div class="tarot-fan-wrap">
+          <div class="tarot-fan" id="deck">
+            ${T.spread.map((s, i) => {
+              const d = i - (TAROT_SPREAD_N - 1) / 2;
+              const used = T.drawn.some(d => d.si === i);
+              return `<div class="tcard ${used ? "flipped used" : "pickable"}" data-i="${i}" role="button" tabindex="0" aria-label="${i + 1}번째 카드 뒤집기"
+                style="--dx:${d * 42}px;--rot:${d * 3.4}deg;--dy:${d * d * 2.6}px;z-index:${10 - Math.abs(d)}">
+                <div class="inner">
+                  <div class="face back"></div>
+                  <div class="face front"><img class="${s.reversed ? "rev" : ""}" src="${cardArt(s.card.n)}" alt="" draggable="false"></div>
+                </div>
+              </div>`;
+            }).join("")}
+          </div>
+          <div class="tarot-table"></div>
+        </div>
+
+        <p class="tiny center" id="pickHint" style="margin-top:6px">${T.drawn.length ? (3 - T.drawn.length) + "장 더 골라 주세요" : "세 장을 골라 주세요"}</p>
+        <button class="chip plain" id="btnShuffle" style="display:block;margin:10px auto 0">카드 섞기</button>
       `;
-      const doDraw = () => {
-        const now = new Date();
-        const seedBase = S.profile ? S.profile.birth.y * 1000 + S.profile.birth.m * 31 + S.profile.birth.d : 7;
-        const seed = seedBase + now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate()
-          + (S.usage.tarotDraws || 0) * 13;
-        let x = seed;
-        const rnd = () => { x = (x * 1103515245 + 12345) & 0x7fffffff; return x / 0x7fffffff; };
-        const pool = window.TAROT_DECK.slice();
-        const picks = [];
-        for (let i = 0; i < 3; i++) {
-          const idx = Math.floor(rnd() * pool.length);
-          const card = pool.splice(idx, 1)[0];
-          picks.push({ card, reversed: rnd() > 0.68 });
-        }
-        T.drawn = picks;
-        S.usage.tarotDraws = (S.usage.tarotDraws || 0) + 1;
-        save();
-        showLoading("카드를 펼치는 중", "달빛이 카드의 의미를 읽고 있어요");
-        setTimeout(() => { hideLoading(); renderTarot(); }, 1000);
+      $$("#deck .tcard").forEach(c => {
+        c.onclick = () => pickFromFan(c);
+        c.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pickFromFan(c); } };
+      });
+      $("#btnTarotBack").onclick = () => { T.topic = null; T.drawn = []; T.spread = []; renderTarot(); };
+      $("#btnShuffle").onclick = () => {
+        if (T.busy) return;
+        T.drawn = []; T.spread = makeSpread(TAROT_SPREAD_N); renderTarot();
+        toast("카드를 다시 섞었어요");
       };
-      $("#btnTarotBack").onclick = () => { T.topic = null; renderTarot(); };
-      $("#btnDraw").onclick = doDraw;
-      $$("#deck .tcard").forEach(c => c.onclick = doDraw);
+      bindBokchaeButtons(el);
       return;
     }
 
+    /* ---- 3. 결과 — 고른 카드의 일러스트와 해석 ---- */
     const picks = T.drawn;
     el.innerHTML = `
       <button class="chip plain" id="btnTarotBack">← 분야 다시 고르기</button>
-      <div class="eyebrow" style="margin-top:14px">${T.topic.icon} ${T.topic.label} · ${T.topic.positions.length}장 배열</div>
-      <div class="h-title" style="margin-top:4px;font-size:22px">${esc(S.profile && S.profile.name ? S.profile.name + "님이 뽑은 카드" : "뽑은 카드")}</div>
+      <div class="eyebrow" style="margin-top:14px">${T.topic.icon} ${T.topic.label} · ${picks.length}장 배열</div>
+      <div class="h-title" style="margin-top:4px;font-size:22px">${esc(S.profile && S.profile.name ? S.profile.name + "님이 고른 카드" : "고른 카드")}</div>
       <div class="tarot-slots" style="margin-top:14px">
         ${picks.map((p, i) => `
-          <div>
-            <div class="tcard flipped" style="width:96px;height:154px">
-              <div class="inner">
-                <div class="face back"><div class="emblem">☾</div><div class="deco">DALBIT</div></div>
-                <div class="face front ${p.reversed ? "rev" : ""}">
-                  <div class="num">${p.card.roman}</div>
-                  <div class="glyph">${p.card.glyph}</div>
-                  <div class="nm">${p.card.ko}</div>
-                  <div class="dir">${p.reversed ? "역방향" : "정방향"}</div>
-                </div>
-              </div>
-            </div>
-            <div class="slot-label">${T.topic.positions[i]}</div>
-          </div>`).join("")}
+          <figure>
+            ${tarotCardHTML(p, "lg")}
+            <div class="slot-pos">${T.topic.positions[i]}</div>
+            <div class="slot-name">${p.card.ko}</div>
+            <div class="slot-dir">${p.card.roman} · ${p.reversed ? "역방향" : "정방향"}</div>
+          </figure>`).join("")}
       </div>
 
       <div class="card" style="margin-top:16px">
@@ -772,10 +841,43 @@
       </div>
       <p class="disclaimer">타로는 참고용 오락 콘텐츠입니다. 중요한 결정은 스스로 판단해 주세요.</p>
     `;
-    $("#btnTarotBack").onclick = () => { T.topic = null; T.drawn = []; renderTarot(); };
-    $("#btnTarotAgain").onclick = () => { T.drawn = []; T.deep = false; renderTarot(); };
+    $("#btnTarotBack").onclick = () => { T.topic = null; T.drawn = []; T.spread = []; renderTarot(); };
+    $("#btnTarotAgain").onclick = () => { T.drawn = []; T.deep = false; T.spread = makeSpread(TAROT_SPREAD_N); renderTarot(); };
     $("#btnTarotShare").onclick = () => toast("이 기기에 결과를 보관했습니다");
     bindBokchaeButtons(el);
+  }
+
+  // 팬에서 카드 한 장을 눌렀을 때 — 뒤집고, 자리로 옮긴다
+  function pickFromFan(el) {
+    const i = +el.dataset.i;
+    if (T.busy || !T.spread[i] || T.drawn.some(d => d.si === i)) return;
+    T.busy = true;
+    const pick = Object.assign({ si: i }, T.spread[i]);
+    el.classList.add("flipped");
+    el.classList.remove("pickable");
+    tarotFlipSfx();
+    setTimeout(() => {
+      T.drawn.push(pick);
+      const k = T.drawn.length - 1;
+      const slot = $(`#picks .pick-slot[data-k="${k}"]`);
+      if (slot) {
+        slot.classList.remove("empty");
+        slot.innerHTML = tarotCardHTML(pick) + `<div class="slot-label">${T.topic.positions[k]}</div>`;
+        slot.classList.add("just");
+      }
+      el.classList.add("used");
+      const hint = $("#pickHint");
+      if (hint) hint.textContent = T.drawn.length >= 3 ? "세 장을 모두 골랐어요 · 카드를 펼치는 중" : `${3 - T.drawn.length}장 더 골라 주세요`;
+      T.busy = false;
+      if (T.drawn.length >= 3) {
+        S.usage.tarotDraws = (S.usage.tarotDraws || 0) + 1;
+        save();
+        setTimeout(() => {
+          showLoading("카드를 펼치는 중", "달빛이 카드의 의미를 읽고 있어요");
+          setTimeout(() => { hideLoading(); T.spread = []; renderTarot(); }, 1100);
+        }, 700);
+      }
+    }, 700);
   }
 
   function deepTarotHTML(picks) {
@@ -928,7 +1030,7 @@
         
       </div>
       <div class="tabs">
-        <button class="tab ${NM.tab === "make" ? "on" : ""}" data-tab="make">아이 이름 작명</button>
+        <button class="tab ${NM.tab === "make" ? "on" : ""}" data-tab="make">이름 작명</button>
         <button class="tab ${NM.tab === "check" ? "on" : ""}" data-tab="check">이름 풀이</button>
       </div>
       ${NM.tab === "make" ? namingMakeHTML() : namingCheckHTML()}
@@ -953,8 +1055,8 @@
             </div>
           </div>
           <div class="field">
-            <label class="label">아이 성별</label>
-            <div class="seg" id="nm-gender"><button data-v="female" class="on">여자아이</button><button data-v="male">남자아이</button></div>
+            <label class="label">성별</label>
+            <div class="seg" id="nm-gender"><button data-v="female" class="on">여성</button><button data-v="male">남성</button></div>
           </div>
           <div class="field">
             <label class="label">원하는 분위기</label>
@@ -967,8 +1069,8 @@
     return `
       <div class="row" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
         <div>
-          <div class="eyebrow">${esc(NM.rec.mood)} 이름</div>
-          <div class="h-title" style="font-size:20px;margin-top:2px">${esc(NM.rec.sur)}씨 아이에게</div>
+          <div class="eyebrow">${esc(NM.rec.mood)} ${esc(NM.rec.genderLabel || "")} 이름</div>
+          <div class="h-title" style="font-size:20px;margin-top:2px">${esc(NM.rec.sur)}씨에게</div>
         </div>
         <button class="chip plain" id="btnMakeReset">다시</button>
       </div>
@@ -1241,6 +1343,7 @@
         <div class="med-candle" id="medCandle">
           <div class="flame"></div>
           <div class="body"></div>
+          <span class="med-candle-tip" id="medCandleTip">🕯️ 여기 촛불</span>
         </div>
         <div class="med-timer-wrap">
           <div class="med-timer" id="medTime">3:00<small> / 3:00</small></div>
@@ -1248,10 +1351,20 @@
         </div>
       </div>
 
+      <button class="med-candle-btn" id="medCandleBtn" type="button" aria-pressed="false" aria-label="소원 촛불 켜기">
+        <span class="ico">🕯️</span><b>촛불 켜기</b><i class="spark">✨</i>
+      </button>
+
       <div class="sound-row">
         <button class="snd-btn" data-sound="bowl"><span class="ico">🔔</span>싱잉볼</button>
         <button class="snd-btn" data-sound="moktak"><span class="ico">🥁</span>목탁</button>
         <button class="snd-btn" data-sound="rain"><span class="ico">🌧️</span>빗소리</button>
+      </div>
+
+      <div class="voice-row">
+        <button class="voice-toggle on" id="medVoiceToggle" type="button" aria-pressed="true" aria-label="호흡 음성 안내 끄기">
+          <span class="ico">🗣️</span><span class="lb">호흡 음성 안내</span><i class="sw" aria-hidden="true"></i><span class="st">켜짐</span>
+        </button>
       </div>
 
       <div class="med-len">
@@ -1260,7 +1373,7 @@
         <button data-min="5">5분</button>
       </div>
       <button class="btn" id="medStart" style="margin-top:12px">명상 시작</button>
-      <p class="med-caption">촛불을 눌러 소원을 밝혀 보세요 · 소리는 이 기기에서만 들립니다</p>
+      <p class="med-caption">왼쪽 촛불을 눌러도 켜져요 · 소리는 이 기기에서만 들립니다</p>
       <p class="disclaimer">명상은 마음을 가다듬기 위한 참고 콘텐츠이며, 의료적 치료를 대신하지 않습니다.</p>
     `;
     $("#btnMedBack").onclick = () => App.go("village");
@@ -1315,6 +1428,63 @@
     if (window.DalbitWorld && window.DalbitWorld.ready) window.DalbitWorld.wishLanterns(3);
   }
 
+  /* 소원등은 연못가 '소원등 터'에서 띄운다.
+     마을에 있으면 캐릭터가 그 자리까지 걸어간 뒤 창이 열리고(가까우면 바로),
+     다른 화면에서는 곧바로 창을 연다. */
+  let wishGoing = false;
+  function openWishSpot() {
+    const W = window.DalbitWorld;
+    if (App.current !== "village" || !W || !W.ready) { wishSheet(); return; }
+    if (wishGoing) return;
+    let walked = false;
+    const go = W.walkToWish(() => {
+      wishGoing = false;
+      hideWalkHint();
+      wishSheet();
+    });
+    walked = (go === "walk");
+    if (walked) {
+      wishGoing = true;
+      showWalkHint("🏮 연못가 소원등 터로 걸어가는 중…");
+    }
+  }
+
+  /* 사람들이 가장 많이 비는 소원 — 한 번 누르면 소원 칸에 바로 들어간다
+     l = 단추에 보이는 짧은 말, t = 소원 칸에 들어가는 문장 */
+  const WISH_PRESETS = [
+    { l: "🌿 가족 모두 건강", t: "🌿 가족 모두 건강하게 해 주세요" },
+    { l: "💰 재물운 상승", t: "💰 재물운이 활짝 열리게 해 주세요" },
+    { l: "🍀 하는 일 술술", t: "🍀 하는 일이 술술 풀리게 해 주세요" },
+    { l: "💕 좋은 인연", t: "💕 좋은 인연을 만나게 해 주세요" },
+    { l: "🎓 시험·합격 기원", t: "🎓 시험·합격의 기쁨을 누리게 해 주세요" },
+    { l: "🧘 마음의 평안", t: "🧘 마음이 늘 평안하기를" }
+  ];
+
+  /* 연못 동전 — 연못가로 걸어가서 동전을 던지고, 물걸이 번진 뒤 오늘의 행운 카드가 뜬다 */
+  let pondGoing = false;
+  function openPondSpot() {
+    const W = window.DalbitWorld;
+    const V = window.DalbitVillage;
+    const luck = () => {
+      S.mini.pond = (S.mini.pond || 0) + 1;
+      save();
+      if (window.DalbitSound) window.DalbitSound.tone(560, 0.5, 0.09, "triangle");
+      if (V && V.playPond) V.playPond();
+    };
+    if (App.current !== "village" || !W || !W.ready) { luck(); return; }
+    if (pondGoing) return;
+    const go = W.walkToPond(() => {
+      pondGoing = false;
+      hideWalkHint();
+      if (window.DalbitSound) window.DalbitSound.tone(520, 0.18, 0.07, "square");
+      W.tossCoin(() => setTimeout(luck, 240));
+    });
+    if (go === "walk") {
+      pondGoing = true;
+      showWalkHint("🪙 연못가로 걸어가는 중…");
+    }
+  }
+
   function wishSheet() {
     openSheet(`
       <div class="grabber"></div>
@@ -1328,9 +1498,17 @@
         </div>
       </div>
 
-      <div class="field" style="margin-top:4px">
-        <textarea class="input" id="wishText" rows="3" maxlength="60" style="min-height:88px;line-height:1.7"
-          placeholder="예) 가족 모두 건강하고, 아이들이 하는 일이 잘 되게 해 주세요."></textarea>
+      <div class="eyebrow" style="margin-top:2px">자주 비는 소원 · 누르면 바로 들어가요</div>
+      <div class="wish-chips" id="wishChips">
+        ${WISH_PRESETS.map((w, i) => `<button class="wish-chip" type="button" data-i="${i}">${w.l}</button>`).join("")}
+      </div>
+
+      <div class="field" style="margin-top:10px">
+        <div class="wish-input-wrap">
+          <textarea class="input" id="wishText" rows="3" maxlength="60" style="min-height:88px;line-height:1.7;padding-right:54px"
+            placeholder="예) 가족 모두 건강하고, 아이들이 하는 일이 잘 되게 해 주세요."></textarea>
+          <button class="wish-mic" id="btnWishMic" type="button" aria-label="말로 소원 쓰기">🎙️</button>
+        </div>
       </div>
       <button class="btn" id="btnWish" style="margin-top:12px">등불에 새겨 띄우기</button>
       <button class="btn ghost sm" id="btnWishOil" style="margin-top:8px">🏮 소원등 기름값 보태기</button>
@@ -1341,11 +1519,67 @@
 
     const ta = $("#wishText");
     const label = $("#wlText");
+    const chips = $$("#wishChips .wish-chip");
     ta.addEventListener("input", () => {
       const v = ta.value.trim();
       label.textContent = v || "소원을 적으면 여기에 새겨져요";
       label.classList.toggle("empty", !v);
+      chips.forEach(c => c.classList.toggle("on", WISH_PRESETS[+c.dataset.i].t === v));
     });
+
+    /* 인기 소원 원터치 — 소원 칸과 등불 미리보기에 바로 들어간다 */
+    chips.forEach(ch => {
+      ch.onclick = () => {
+        const t = WISH_PRESETS[+ch.dataset.i].t;
+        ta.value = (ta.value.trim() === t) ? "" : t;
+        ta.dispatchEvent(new Event("input"));
+        if (window.DalbitSound) window.DalbitSound.tone(720, 0.16, 0.06, "sine");
+      };
+    });
+
+    /* 말로 쓰기 — 마이크로 말하면 소원 칸에 받아 적는다 */
+    const mic = $("#btnWishMic");
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      if (mic) mic.hidden = true;
+    } else if (mic) {
+      mic.onclick = () => {
+        if (wishMic) { try { wishMic.stop(); } catch (e) { } return; }
+        let rec;
+        try { rec = new SR(); } catch (e) { toast("이 기기에서는 말로 쓰기를 쓸 수 없어요"); return; }
+        wishMic = rec;
+        rec.lang = "ko-KR";
+        rec.interimResults = false;
+        rec.continuous = false;
+        rec.maxAlternatives = 1;
+        mic.classList.add("on");
+        mic.textContent = "⏹";
+        mic.setAttribute("aria-label", "말로 쓰기 그만두기");
+        toast("🎙️ 말씀하시면 소원 칸에 받아 적어요");
+        rec.onresult = (e) => {
+          let said = "";
+          for (let i = 0; i < e.results.length; i++) said += e.results[i][0].transcript + " ";
+          said = said.trim();
+          if (!said) return;
+          const cur = ta.value.trim();
+          ta.value = (cur ? cur + " " : "") + said;
+          if (ta.value.length > 60) ta.value = ta.value.slice(0, 60);
+          ta.dispatchEvent(new Event("input"));
+        };
+        rec.onerror = (e) => {
+          const err = e && e.error;
+          if (err === "not-allowed" || err === "service-not-allowed") toast("마이크 사용을 허락해 주세요");
+          else if (err !== "aborted" && err !== "no-speech") toast("잘 알아듣지 못했어요 · 다시 말씀해 주세요");
+        };
+        rec.onend = () => {
+          wishMic = null;
+          mic.classList.remove("on");
+          mic.textContent = "🎙️";
+          mic.setAttribute("aria-label", "말로 소원 쓰기");
+        };
+        try { rec.start(); } catch (e) { rec.onend(); toast("말로 쓰기를 시작하지 못했어요"); }
+      };
+    }
 
     $("#btnWishClose").onclick = closeSheet;
     $("#btnWishOil").onclick = () => Bokchae.open("wish");
@@ -1354,6 +1588,7 @@
       if (text.length < 2) { toast("소원을 조금 더 적어 주세요"); return; }
       S.mini.wishes.unshift({ text: text.slice(0, 60), at: new Date().toLocaleDateString("ko-KR") });
       S.mini.wishes = S.mini.wishes.slice(0, 20);
+      S.mini.lanterns = (S.mini.lanterns || 0) + 1;   // 하늘로 띄운 소원등 수
       save();
       closeSheet();
       spawnLantern(text.slice(0, 60));
@@ -1417,7 +1652,7 @@
         <div class="list-row"><div>타로 뽑기</div><div class="r">${S.usage.tarotDraws || 0}회</div></div>
         <div class="list-row"><div>궁합</div><div class="r">${S.usage.gungapRuns || 0}회</div></div>
         <div class="list-row"><div>꿈풀이</div><div class="r">${S.usage.dreamCount || 0}회</div></div>
-        <div class="list-row"><div>마당 놀이</div><div class="r">복주머니 ${S.mini.bag || 0} · 엽전 ${S.mini.coin || 0} · 쓰다듬기 ${S.mini.pets || 0}</div></div>
+        <div class="list-row"><div>마당 놀이</div><div class="r">복주머니 ${S.mini.bag || 0} · 엽전 점 ${S.mini.coin || 0} · 소원등 ${S.mini.lanterns || 0} · 연못 동전 ${S.mini.pond || 0}</div></div>
       </div>
       <div class="card">
         <div class="list-row"><div>배경음</div><div class="r link" id="lnkSound">${BGM && BGM.isMuted() ? "꺼짐 · 켜기" : "켜짐 · 끄기"}</div></div>
@@ -1595,13 +1830,10 @@
           V.playCoin();
         }
         if (act === "wish") {
-          wishSheet();
+          openWishSpot();
         }
-        if (act === "pet") {
-          S.mini.pets = (S.mini.pets || 0) + 1; save();
-          if (window.DalbitSound) window.DalbitSound.tone(780, 0.4, 0.09, "sine");
-          const name = (window.DalbitWorld && window.DalbitWorld.ready) ? window.DalbitWorld.petHearts() : null;
-          V.playPet(name, "오늘도 같이 걸어서 즐거워요!");
+        if (act === "pond") {
+          openPondSpot();
         }
       };
     });
@@ -1647,6 +1879,8 @@
     }
     W.mount($("#world"), {
       onEnter: (id) => App.walkGo(id),
+      onWish: () => openWishSpot(),
+      onPond: () => openPondSpot(),
       onFail: () => toast("이 기기에서는 3D 마을을 켤 수 없어요 · 아래 메뉴로 이용해 주세요", 3600)
     });
     if (W.ready) {

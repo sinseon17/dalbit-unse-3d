@@ -1,24 +1,26 @@
 /* ============================================================
    달빛 운세 · bgm.js
-   화면별 배경음(Web Audio 합성 · 음원 파일 없음)
-     · village   : 칼림바·가야금풍 5음계 + 산새/바람
-     · consult   : 잔잔한 오르골
-     · meditation: 처마 풍경 + 깊은 싱잉볼
+   화면별 배경음 — 실제 음원 파일 + (파일이 없을 때) 합성음
+     · village   : 실제 숲속 새소리 루프 (assets/audio/birds_loop.mp3)
+     · consult   : 낮게 깔리는 물소리 + 가끔 울리는 은은한 싱잉볼
+     · meditation: 자동 배경음 없음 — 버튼(싱잉볼·목탁·빗소리)을 눌러야만 소리 난다
    브라우저 자동재생 정책상 첫 터치/토글에서 시작한다.
    ============================================================ */
 (function (global) {
   "use strict";
 
+  const A = global.DalbitAudio;
   const MUTE_KEY = "dalbit_bgm_muted";
-  const LEVEL = { village: 0.075, consult: 0.055, meditation: 0.045 };
+  const LEVEL = { village: 0.62, consult: 0.34, meditation: 0 };
+  const SILENT = { meditation: true };   // 명상방은 조용히 — 사용자가 고른 소리만
 
   let ac = null;
   let master = null;
   let mode = null;         // "village" | "consult" | "meditation" | null
   let muted = false;
-  let loopTimer = null;
+  let scene = null;        // 자연음 바탕
+  let beatTimer = null;    // 상담실의 느린 싱잉볼
   let started = false;     // 사용자 제스처 이후 오디오가 열렸는지
-  let step = 0;
 
   try { muted = localStorage.getItem(MUTE_KEY) === "1"; } catch (e) { }
 
@@ -30,6 +32,7 @@
       master = ac.createGain();
       master.gain.value = 0;
       master.connect(ac.destination);
+      if (A && A.preload) A.preload(ac);   // 음원을 미리 받아 둔다
     }
     if (ac.state === "suspended") { ac.resume().catch(() => { }); }
     return ac;
@@ -43,155 +46,60 @@
     master.gain.linearRampToValueAtTime(v, t + (sec || 0.8));
   }
 
-  /* ---------- 악기 ---------- */
-  function pluck(freq, when, dur, gain, type) {
-    const t = ac.currentTime + (when || 0);
-    const o = ac.createOscillator(), g = ac.createGain(), lp = ac.createBiquadFilter();
-    o.type = type || "triangle";
-    o.frequency.setValueAtTime(freq, t);
-    lp.type = "lowpass"; lp.frequency.setValueAtTime(3200, t);
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(gain, t + 0.012);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(lp); lp.connect(g); g.connect(master);
-    o.start(t); o.stop(t + dur + 0.05);
+  /* ---------- 화면별 바탕 ---------- */
+  const SCENE = {
+    village: { level: 0.55 },
+    consult: { level: 0.30 }
+  };
+  const BOWL_EVERY = { consult: 17000 };
+
+  function stopScene(fade) {
+    if (scene) { try { scene.stop(fade); } catch (e) { } scene = null; }
+    if (beatTimer) { clearInterval(beatTimer); beatTimer = null; }
   }
 
-  // 오르골: 사인 + 약한 배음, 긴 감쇠
-  function orgel(freq, when, gain) {
-    const t = ac.currentTime + (when || 0);
-    [1, 2, 3.01].forEach((mul, i) => {
-      const o = ac.createOscillator(), g = ac.createGain();
-      o.type = "sine";
-      o.frequency.setValueAtTime(freq * mul, t);
-      const amp = gain / (i + 1.4);
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(amp, t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 1.8 + i * 0.2);
-      o.connect(g); g.connect(master);
-      o.start(t); o.stop(t + 2.2);
-    });
-  }
-
-  // 풍경(작은 종): 높은 사인, 긴 여운 + 살짝 흔들리는 피치
-  function chime(freq, when, gain) {
-    const t = ac.currentTime + (when || 0);
-    const o = ac.createOscillator(), g = ac.createGain(), lfo = ac.createOscillator(), lg = ac.createGain();
-    o.type = "sine";
-    o.frequency.setValueAtTime(freq, t);
-    lfo.frequency.setValueAtTime(4.5, t);
-    lg.gain.setValueAtTime(freq * 0.006, t);
-    lfo.connect(lg); lg.connect(o.frequency);
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(gain, t + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 3.4);
-    o.connect(g); g.connect(master);
-    o.start(t); lfo.start(t);
-    o.stop(t + 3.6); lfo.stop(t + 3.6);
-  }
-
-  function bowlDeep(freq, when, gain) {
-    const t = ac.currentTime + (when || 0);
-    [1, 2.01, 2.98].forEach((mul, i) => {
-      const o = ac.createOscillator(), g = ac.createGain();
-      o.type = "sine";
-      o.frequency.setValueAtTime(freq * mul, t);
-      const amp = gain / (i + 1.3);
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(amp, t + 0.04);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 6.5);
-      o.connect(g); g.connect(master);
-      o.start(t); o.stop(t + 6.8);
-    });
-  }
-
-  // 산새 지저귐
-  function bird(when) {
-    const t = ac.currentTime + (when || 0);
-    const base = 1900 + Math.random() * 900;
-    for (let i = 0; i < 3; i++) {
-      const o = ac.createOscillator(), g = ac.createGain();
-      o.type = "sine";
-      const at = t + i * 0.09;
-      o.frequency.setValueAtTime(base + i * 120, at);
-      o.frequency.exponentialRampToValueAtTime(base - 260, at + 0.07);
-      g.gain.setValueAtTime(0.0001, at);
-      g.gain.exponentialRampToValueAtTime(0.028, at + 0.01);
-      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.08);
-      o.connect(g); g.connect(master);
-      o.start(at); o.stop(at + 0.1);
+  function startScene() {
+    stopScene(0.8);
+    if (!mode || !ac || !A || SILENT[mode]) return;
+    const s = SCENE[mode] || SCENE.village;
+    const startSynth = () => { scene = A.ambience(ac, master, { level: s.level, fade: 2.6 }); };
+    if (mode === "village" && A.loopFile && A.FILES && A.FILES.birds) {
+      // 실제 숲속 새소리 — 이음매 없이 반복되는 17.4초 루프
+      scene = A.loopFile(ac, master, A.FILES.birds, {
+        level: s.level, fade: 2.6,
+        onFail: () => { if (mode === "village" && ac) startSynth(); }
+      });
+    } else {
+      startSynth();
+    }
+    if (BOWL_EVERY[mode]) {
+      const every = BOWL_EVERY[mode];
+      const strike = () => {
+        if (muted || !ac) return;
+        const synth = () => A.bowl(ac, master, { freq: 174, gain: 0.22, wet: 0.28 });
+        if (A.playOnce && A.FILES && A.FILES.bowl) A.playOnce(ac, master, A.FILES.bowl, { gain: 0.22, onFail: synth });
+        else synth();
+      };
+      setTimeout(() => { if (mode === "consult" && !muted) strike(); }, 4200);
+      beatTimer = setInterval(strike, every);
     }
   }
 
-  // 바람: 필터드 노이즈 스웰
-  function wind() {
-    const t = ac.currentTime;
-    const dur = 3.4;
-    const len = Math.floor(ac.sampleRate * dur);
-    const buf = ac.createBuffer(1, len, ac.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * 0.35;
-    const src = ac.createBufferSource(); src.buffer = buf;
-    const bp = ac.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 700; bp.Q.value = 0.6;
-    const g = ac.createGain();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.05, t + 1.2);
-    g.gain.linearRampToValueAtTime(0.0001, t + dur);
-    src.connect(bp); bp.connect(g); g.connect(master);
-    src.start(t); src.stop(t + dur);
-  }
-
-  /* ---------- 화면별 진행 ---------- */
-  const PENTA = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.5]; // C D E G A C
-  const ORGEL = [523.25, 659.25, 783.99, 880.00, 1046.5, 1318.5];
-
-  function villageStep() {
-    // 통통 튀는 칼림바 선율 (5음계 random walk)
-    const i = Math.max(0, Math.min(PENTA.length - 1, 2 + Math.round(Math.sin(step * 0.7) * 2) + (Math.random() < 0.35 ? (Math.random() < 0.5 ? 1 : -1) : 0)));
-    pluck(PENTA[i], 0, 1.1, 0.13, "triangle");
-    if (Math.random() < 0.45) pluck(PENTA[(i + 2) % PENTA.length] / 2, 0.28, 1.4, 0.07, "sine");
-    if (step % 8 === 3) bird(0.5);
-    if (step % 16 === 11) wind();
-    step++;
-  }
-
-  function consultStep() {
-    const i = (step * 3) % ORGEL.length;
-    orgel(ORGEL[i], 0, 0.06);
-    if (Math.random() < 0.5) orgel(ORGEL[(i + 2) % ORGEL.length] / 2, 0.42, 0.035);
-    step++;
-  }
-
-  function meditationStep() {
-    chime(1318.5 * (Math.random() < 0.5 ? 1 : 1.5), 0, 0.05);
-    if (step % 3 === 0) bowlDeep(132, 0.6, 0.05);
-    step++;
-  }
-
-  const STEP_MS = { village: 620, consult: 1150, meditation: 3600 };
-
-  function stopLoop() {
-    if (loopTimer) { clearInterval(loopTimer); loopTimer = null; }
-  }
-
   function startLoop() {
-    stopLoop();
     if (!mode) return;
     if (!audio()) return;
     started = true;
-    gainTo(muted ? 0 : LEVEL[mode], 1.2);
-    const fn = { village: villageStep, consult: consultStep, meditation: meditationStep }[mode];
-    loopTimer = setInterval(() => { if (!muted) fn(); }, STEP_MS[mode]);
-    if (!muted) fn();
+    gainTo(SILENT[mode] || muted ? 0 : LEVEL[mode], SILENT[mode] ? 0.4 : 1.2);
+    startScene();
   }
 
   function setMode(m) {
     if (m === mode) return;
     mode = m;
-    if (!mode) { gainTo(0, 0.5); stopLoop(); return; }
+    if (!mode) { gainTo(0, 0.5); stopScene(1.2); return; }
     if (!started) return;      // 첫 터치 전에는 대기
     startLoop();
-    if (master) gainTo(muted ? 0 : LEVEL[mode], 1.0);
+    if (master) gainTo(SILENT[mode] || muted ? 0 : LEVEL[mode], SILENT[mode] ? 0.4 : 1.0);
   }
 
   /* 첫 사용자 제스처에서 오디오 열기 */

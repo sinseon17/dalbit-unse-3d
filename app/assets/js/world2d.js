@@ -21,7 +21,7 @@
     { id: "today", name: "오늘의 운세 마당", short: "오늘", icon: "☀️", x: 277, y: 752, w: 360, h: 356, signY: 432, door: [296, 712] },
     { id: "saju", name: "사주팔자 전각", short: "사주", icon: "☯️", x: 645, y: 306, w: 300, h: 214, signY: 180, door: [742, 360] },
     { id: "tarot", name: "타로 천막", short: "타로", icon: "🔮", x: 405, y: 430, w: 220, h: 180, signY: 254, door: [434, 404] },
-    { id: "naming", name: "아이 작명소", short: "작명", icon: "✏️", x: 563, y: 500, w: 240, h: 186, signY: 342, door: [604, 466] },
+    { id: "naming", name: "작명소", short: "작명", icon: "✏️", x: 563, y: 500, w: 240, h: 186, signY: 342, door: [604, 466] },
     { id: "dream", name: "꿈풀이 찻집", short: "꿈풀이", icon: "🍵", x: 1000, y: 500, w: 290, h: 220, signY: 311, door: [1014, 470] },
     { id: "meditation", name: "기도·명상방", short: "명상", icon: "🔔", x: 1103, y: 716, w: 200, h: 234, signY: 528, door: [1102, 700] },
     { id: "gungap", name: "궁합 정원", short: "궁합", icon: "💗", x: 1258, y: 526, w: 210, h: 86, signY: 444, door: [1258, 520] }
@@ -50,6 +50,40 @@
     }
     return best;
   }
+
+  /* ── 연못가 소원등 터 ──────────────────────────────────────────
+     그림 속 황토길은 연못 남쪽 잔디밭까지 이어지지 않는다(path_graph.py 는 길 색만 뽑았다).
+     길 끝 노드(625,705)에서 연못가 빈터까지 디딤돌 길 노드를 덧붙여, 캐릭터가
+     실제로 걸어갈 수 있는 '유효한 길'로 만든다. 좌표는 village-bg-clay.jpg 기준. */
+  const WISH_SPOT = {
+    id: "wish", name: "연못가 소원등 터", short: "소원등", icon: "🏮",
+    x: 772, y: 706,            // 등대(표지)가 서는 자리
+    focusX: 792,               // 이 자리에 섰을 때 카메라 중심(연못·나무다리가 함께 보이게)
+    stand: [700, 700],         // 캐릭터가 도착해 서는 자리 = 디딤돌 길 끝 노드
+    node: -1
+  };
+  (function extendToPond() {
+    const trail = [[664, 703], [688, 701], [WISH_SPOT.stand[0], WISH_SPOT.stand[1]]];
+    let prev = nearestNode(625, 705);        // 황토길 끝 노드
+    trail.forEach((p) => {
+      N.push(p); ADJ.push([]);
+      const i = N.length - 1;
+      ADJ[prev].push(i); ADJ[i].push(prev);
+      prev = i;
+    });
+    WISH_SPOT.node = N.length - 1;
+  })();
+
+  /* ── 연못 동전 던지기 포인트 ─────────────────────────────────────
+     소원등 터와 같은 연못가 빈터에 서서, 연못 남쪽 수면으로 동전을 던진다.
+     aim = 동전이 잠기는 수면 좌표, hit = 연못을 눌렀다고 볼 물결 범위(타원). */
+  const POND = {
+    id: "pond", name: "연못 동전", icon: "🪙",
+    stand: [700, 700],                 // 걸어가 서는 자리(소원등 터 앞)
+    aim: [800, 652],                   // 동전이 떨어지는 수면
+    focusX: 780,
+    hit: { cx: 845, cy: 600, rx: 168, ry: 104 }
+  };
 
   /* 길을 따라 걷는 경로(다익스트라) — 격자 계단이 보이지 않게 살짝 둥글린다 */
   function smoothPath(pts, iter) {
@@ -102,6 +136,38 @@
     b.doorDist = Math.round(Math.hypot(b.stop.x - b.door[0], b.stop.y - b.door[1]));
   });
 
+  /* ── 건물 문 앞까지 이어지는 보행 연결 ──────────────────────
+     길 그래프는 황토색 길만 뽑은 것이라, 타로 천막·꿈풀이 잔집·기도·명상방 정자·궁합 정원은
+     길 끝에서 꽤 멀었다. 잔디 가장자리·나무다리를 따라 노드를 이어 붙여 캐릭터가
+     실제로 각 건물 문 앞(b.door)까지 걸어가게 한다. (물·지붕은 건너지 않는다) */
+  const DOOR_WALK = {
+    today: [[280, 726], [290, 718], [296, 713]],
+    tarot: [[545, 470], [515, 462], [485, 448], [455, 430], [434, 408]],
+    dream: [[865, 478], [905, 486], [950, 492], [990, 486], [1014, 473]],
+    meditation: [[745, 706], [790, 706], [835, 690], [875, 684], [915, 690],
+                 [945, 672], [980, 665], [1015, 672], [1055, 690], [1090, 700], [1102, 700]],
+    gungap: [[1050, 484], [1090, 494], [1125, 502], [1155, 508], [1190, 510], [1225, 516], [1258, 520]]
+  };
+  (function linkDoors() {
+    ["today", "tarot", "dream", "meditation", "gungap"].forEach((id) => {
+      const b = BY_ID[id];
+      // 연못 건너 정자는 연못가 디딤돌 길 끝에서, 궁합 정원은 잔집 문 앞에서 이어진다
+      let prev = (id === "meditation") ? WISH_SPOT.node
+               : (id === "gungap") ? BY_ID.dream.nodeIdx
+               : b.nodeIdx;
+      DOOR_WALK[id].forEach((p) => {
+        N.push(p); ADJ.push([]);
+        const i = N.length - 1;
+        ADJ[prev].push(i); ADJ[i].push(prev);
+        prev = i;
+      });
+      b.nodeIdx = prev;
+      b.stop = nodePt(prev);
+      b.doorDist = 0;
+      b.walkPts = DOOR_WALK[id].slice();
+    });
+  })();
+
   function ageGroup(birth) {
     if (!birth || !birth.y) return 30;
     const now = new Date();
@@ -144,6 +210,8 @@
     mounted: false,
     ready: false,
     BOOTHS: BOOTHS,
+    WISH_SPOT: WISH_SPOT,
+    POND: POND,
     myName: "",
     camX: 430,
     camTarget: 430,
@@ -171,7 +239,8 @@
 
       this.s0 = this.baseScale();
       this.buildBooths();
-      this.buildMe();
+      this.buildSpots();
+      this.sizeLanterns();      this.buildMe();
       this.buildVisitors();
       this.buildNpc();
       this.buildLabels();
@@ -219,6 +288,37 @@
       this.spots = null;
     },
 
+    /* ---------- 연못가 소원등 터 (등대 + 현판 + 바닥 은은한 빛) ---------- */
+    buildSpots() {
+      if (!this.boothLayer) return;
+      const s = WISH_SPOT;
+      let el = this.boothLayer.querySelector(".spot-wish");
+      if (el) el.remove();
+      el = document.createElement("button");
+      el.className = "spot spot-wish";
+      el.type = "button";
+      el.setAttribute("aria-label", s.name + " — 소원등 띄우러 가기");
+      el.style.left = s.x.toFixed(1) + "px";
+      el.style.top = (s.y - 100).toFixed(1) + "px";
+      el.style.zIndex = String(Math.round(s.y) + 1);
+      el.innerHTML =
+        '<span class="sp-glow"></span>' +
+        '<span class="sp-post"><i class="sp-base"></i><i class="sp-lamp"></i></span>' +
+        '<span class="sp-sign"><i>🏮</i>' + s.short + ' 터</span>';
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (this.opts.onWish) this.opts.onWish();
+      });
+      this.boothLayer.appendChild(el);
+      this.wishEl = el;
+    },
+
+    /* 배경 풍등이 화면 높이만큼 떠오르도록 --rise 를 px 로 맞춘다 */
+    sizeLanterns() {
+      const l = this.host && this.host.querySelector("#skyLanterns");
+      if (l) l.style.setProperty("--rise", Math.round(this.H * 0.95) + "px");
+    },
+
     /* ---------- 캐릭터 ---------- */
     makeActor(cfg) {
       const el = document.createElement("div");
@@ -243,7 +343,7 @@
         x: N[start][0], y: N[start][1], node: start, h: 0,
         el: a.el, img: a.img, shadow: a.shadow,
         path: [], onDone: null, walking: false, speed: 86,
-        facing: 1, phase: 0, visible: true
+        facing: 1, phase: 0, visible: true, restT: rnd(0.8, 1.6)
       };
       this.layoutActor(this.me);
       a.el.addEventListener("click", (e) => {
@@ -261,7 +361,7 @@
           xOff: (Math.random() < 0.5 ? -1 : 1) * rnd(6, 13),
           x: N[node][0], y: N[node][1], node: node,
           el: a.el, img: a.img, shadow: a.shadow,
-          path: [], walking: false, speed: v.speed, wait: rnd(1, 6),
+          path: [], walking: false, speed: v.speed, wait: rnd(0.4, 1.4),
           facing: 1, phase: rnd(0, 6)
         };
         this.layoutActor(o);
@@ -357,10 +457,11 @@
         const wasMoved = down.moved;
         down = null;
         if (wasMoved) return;
-        // 빈 곳을 탭하면 그 자리로 걸어간다
+        // 빈 곳을 탭하면 그 자리로 걸어간다 (연못 물결을 탭하면 동전 던지기)
         const r = host.getBoundingClientRect();
         const px = e.clientX - r.left, py = e.clientY - r.top;
         const pt = this.screenToImage(px, py);
+        if (pt && this.inPond(pt.x, pt.y)) { if (this.opts.onPond) this.opts.onPond(); return; }
         if (pt) this.walkFree(pt.x, pt.y);
       };
       host.addEventListener("pointerup", up);
@@ -394,6 +495,7 @@
         if (!w || !h) return;
         this.W = w; this.H = h;
         this.s0 = this.baseScale();
+        this.sizeLanterns();
         this.applyCamera(true);
       };
       global.addEventListener("resize", onResize);
@@ -405,6 +507,7 @@
       const b = BY_ID[id];
       if (!b) { cb && cb(); return; }
       this.focusBooth = b;
+      this.focusPoi = null;
       this.me.path = pathBetween({ x: this.me.x, y: this.me.y }, b.nodeIdx);
       this.me.walking = true;
       this.me.onDone = () => {
@@ -422,9 +525,92 @@
       };
     },
 
+    /* 연못가 소원등 터까지 오솔길·디딤돌로 걸어간 뒤 소원등 창을 연다.
+       이미 가까이 서 있으면 걷지 않고 바로 연다. */
+    walkToWish(cb) {
+      const s = WISH_SPOT;
+      const st = nearestNode(s.stand[0], s.stand[1]);
+      return this.goTo(st, s.x, s.y - 26, "wish", cb);
+    },
+
+    /* 연못 동전 — 연못가 빈터까지 걸어간 뒤 동전을 던진다 */
+    walkToPond(cb) {
+      const p = POND;
+      const st = nearestNode(p.stand[0], p.stand[1]);
+      return this.goTo(st, p.aim[0], p.aim[1], "pond", cb);
+    },
+
+    /* 같은 자리(연못가)로 걸어가는 공통부 — 가까우면 바로 cb */
+    goTo(nodeIdx, sparkX, sparkY, poi, cb) {
+      const s = (poi === "pond") ? POND : WISH_SPOT;
+      this.focusBooth = null;
+      this.focusPoi = { id: poi, x: s.x || s.stand[0], focusX: s.focusX };
+      const arrive = (delay) => {
+        this.me.onDone = null;
+        this.me.walking = false;
+        this.layoutActor(this.me);
+        this.sparkleAt(sparkX, sparkY, poi === "pond" ? 4 : 6);
+        if (delay) setTimeout(() => { cb && cb(); }, delay);
+        else cb && cb();
+      };
+      if (dist([this.me.x, this.me.y], N[nodeIdx]) < 78) {
+        arrive(0);
+        return "near";
+      }
+      this.me.path = pathBetween({ x: this.me.x, y: this.me.y }, nodeIdx);
+      this.me.walking = true;
+      this.layoutActor(this.me);
+      this.me.onDone = () => arrive(240);
+      return "walk";
+    },
+
+    /* 연못 물걸을 탭했는지 (그림 좌표 타원) */
+    inPond(x, y) {
+      const h = POND.hit;
+      const dx = (x - h.cx) / h.rx, dy = (y - h.cy) / h.ry;
+      return (dx * dx + dy * dy) <= 1;
+    },
+
+    /* 동전이 주먹에서 수면까지 포물선으로 날아가고, 물걸이 번진다 */
+    tossCoin(cb) {
+      if (!this.stage) { cb && cb(); return; }
+      const a = POND.aim;
+      const from = { x: this.me.x + (this.me.facing < 0 ? -10 : 10), y: this.me.y - 36 };
+      const dx = a[0] - from.x, dy = a[1] - from.y;
+      const coin = document.createElement("span");
+      coin.className = "fx-coin";
+      coin.style.left = from.x.toFixed(1) + "px";
+      coin.style.top = from.y.toFixed(1) + "px";
+      coin.style.zIndex = "900";
+      coin.style.setProperty("--ex", dx.toFixed(1) + "px");
+      coin.style.setProperty("--ey", dy.toFixed(1) + "px");
+      coin.style.setProperty("--up", (-Math.max(54, Math.abs(dx) * 0.34)).toFixed(1) + "px");
+      this.stage.appendChild(coin);
+      setTimeout(() => {
+        coin.remove();
+        this.rippleAt(a[0], a[1]);
+        cb && cb();
+      }, 1020);
+    },
+
+    rippleAt(x, y) {
+      if (!this.stage) return;
+      for (let i = 0; i < 3; i++) {
+        const r = document.createElement("span");
+        r.className = "fx-ripple";
+        r.style.left = x.toFixed(1) + "px";
+        r.style.top = y.toFixed(1) + "px";
+        r.style.animationDelay = (i * 0.24).toFixed(2) + "s";
+        this.stage.appendChild(r);
+        setTimeout(() => r.remove(), 2600);
+      }
+      this.sparkleAt(x, y, 4);
+    },
+
     walkFree(x, y) {
       // 길 밖을 탭해도 길에서 가장 가까운 지점으로만 걸어간다
       this.focusBooth = null;
+      this.focusPoi = null;
       const idx = nearestNode(x, y);
       this.me.path = pathBetween({ x: this.me.x, y: this.me.y }, idx);
       this.me.walking = true;
@@ -434,6 +620,7 @@
     leave(cb) {
       this.me.el.style.opacity = "1";
       this.focusBooth = null;
+      this.focusPoi = null;
       const homeIdx = nearestNode(540, 688);
       this.me.path = pathBetween({ x: this.me.x, y: this.me.y }, homeIdx);
       this.me.walking = true;
@@ -575,12 +762,50 @@
         this.layoutActor(me);
         if (!moving) {
           const done = me.onDone;
+          me.onDone = null;
           if (done) done();
+          else { me.walking = false; this.layoutActor(me); me.restT = rnd(0.6, 1.2); }
         }
       } else if (me.hopT > 0) {
         me.hopT -= dt;
         this.layoutActor(me);
+      } else {
+        // 가만히 서 있지 않고 짧게 쉬었다가 다시 마을을 산책한다
+        if (me.restT == null) me.restT = rnd(0.6, 1.2);
+        me.restT -= dt;
+        if (me.restT <= 0) this.strollMe();
       }
+    },
+
+    /* 내 캐릭터가 길 위를 스스로 거닐게 한다 (창이 열려 있으면 쉼) */
+    canStroll() {
+      if (this.autoStroll === false) return false;
+      const ov = document.getElementById("overlay");
+      if (ov && ov.classList.contains("on")) return false;
+      const room = document.getElementById("room");
+      if (room && room.classList.contains("on")) return false;
+      const panel = document.getElementById("yardPanel");
+      if (panel && !panel.hidden) return false;
+      if (this.me.el.style.opacity === "0") return false;
+      return true;
+    },
+
+    strollMe() {
+      const me = this.me;
+      me.restT = rnd(0.6, 1.2);
+      if (!this.canStroll()) return;
+      this.focusBooth = null;
+      this.focusPoi = null;
+      const from = nearestNode(me.x, me.y);
+      const to = this.roamTarget(from, me);
+      if (to === from) return;
+      const pts = pathBetween({ x: me.x, y: me.y }, to);
+      if (!pts || pts.length < 2) return;
+      me.path = pts.slice(1);
+      me.walking = true;
+      me.onDone = null;
+      me.speed = rnd(62, 84);
+      this.layoutActor(me);
     },
 
     updateVisitors(dt) {
@@ -596,7 +821,7 @@
         }
         const moving = this.advance(v, dt);
         this.layoutActor(v);
-        if (!moving) { v.walking = false; v.wait = rnd(2, 7); }
+        if (!moving) { v.walking = false; v.wait = rnd(0.5, 1.5); }
       });
     },
 
@@ -624,12 +849,13 @@
       const me = this.me;
       if (this.manualT > 0) this.manualT -= dt;
       let target = me.x;
-      if (this.focusBooth && !me.walking) target = this.focusBooth.x;
+      const focus = this.focusBooth || this.focusPoi;
+      if (focus && !me.walking) target = (focus.focusX || focus.x);
       else if (me.walking) target = lerp(me.x, me.x + (me.facing * 30), 0.35);
       this.camTarget = this.manualT > 0 ? this.camTarget : clamp(target, this.minCamX(), this.maxCamX());
       this.camX = lerp(this.camX, this.camTarget, 1 - Math.exp(-dt * 3.4));
 
-      const wantZoom = this.focusBooth ? 1 : 0;
+      const wantZoom = focus ? 1 : 0;
       this.zoom = lerp(this.zoom, wantZoom, 1 - Math.exp(-dt * 2.2));
       this.applyCamera();
     },

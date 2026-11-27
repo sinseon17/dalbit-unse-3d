@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="assets/fonts/fonts.css">
 <link rel="stylesheet" href="assets/css/app.css">
 <link rel="stylesheet" href="assets/css/world.css">
+<link rel="stylesheet" href="assets/css/saju-qa.css">
 </head>
 <body>
 <div id="device">
@@ -24,6 +25,16 @@
       <img class="vbg" src="assets/img/village-bg-clay.jpg" alt="달빛 운세 마을 — 3D 클레이 마을">
       <div class="booths" id="booths"></div>
       <div class="actors" id="actors"></div>
+    </div>
+    <!-- 배경 하늘로 은은하게 떠오르는 풍등 (장식 · 클릭을 가로막지 않는다) -->
+    <div class="sky-lanterns" id="skyLanterns" aria-hidden="true">
+      <span class="sl" style="--x:8%;--b:38%;--w:26px;--d:44s;--dl:-6s;--o:.9"><i style="--sw:9px;--sd:6.4s"></i></span>
+      <span class="sl" style="--x:21%;--b:46%;--w:23px;--d:53s;--dl:-31s;--o:.78"><i style="--sw:7px;--sd:7.8s"></i></span>
+      <span class="sl" style="--x:35%;--b:34%;--w:30px;--d:40s;--dl:-17s;--o:.95"><i style="--sw:11px;--sd:5.6s"></i></span>
+      <span class="sl" style="--x:51%;--b:43%;--w:23px;--d:48s;--dl:-39s;--o:.82"><i style="--sw:8px;--sd:7.0s"></i></span>
+      <span class="sl" style="--x:65%;--b:36%;--w:28px;--d:42s;--dl:-12s;--o:.92"><i style="--sw:10px;--sd:6.0s"></i></span>
+      <span class="sl" style="--x:79%;--b:47%;--w:18px;--d:56s;--dl:-44s;--o:.75"><i style="--sw:6px;--sd:8.4s"></i></span>
+      <span class="sl" style="--x:92%;--b:40%;--w:24px;--d:46s;--dl:-25s;--o:.86"><i style="--sw:9px;--sd:7.2s"></i></span>
     </div>
     <div class="fx" id="fx"></div>
     <div class="world-labels" id="worldLabels"></div>
@@ -57,7 +68,7 @@
       <button class="yard-btn" type="button" data-play="bag"><span>🎁</span><b>복주머니</b></button>
       <button class="yard-btn" type="button" data-play="coin"><span>🪙</span><b>엽전 점</b></button>
       <button class="yard-btn" type="button" data-play="wish"><span>🏮</span><b>소원등</b></button>
-      <button class="yard-btn" type="button" data-play="pet"><span>🦊</span><b>친구</b></button>
+      <button class="yard-btn" type="button" data-play="pond"><span>🪙</span><b>연못 동전</b></button>
     </div>
     <nav class="dock" id="dock" aria-label="마을 부스">
       <button type="button" data-tab="today"><span class="ic">☀️</span><b>오늘</b><i class="badge" id="dockScore">76</i></button>
@@ -105,11 +116,14 @@
 <script src="assets/js/engine.js"></script>
 <script src="assets/js/content.js"></script>
 <script src="assets/js/naming.js"></script>
+<script src="assets/js/audio.js"></script>
 <script src="assets/js/bgm.js"></script>
 <script src="assets/js/meditation.js"></script>
+<script src="assets/js/meditation-voice.js"></script>
 <script src="assets/js/village.js"></script>
 <script src="assets/js/path_graph.js"></script>
 <script src="assets/js/world2d.js"></script>
 <script src="assets/js/app.js"></script>
+<script src="assets/js/saju-qa.js"></script>
 </body>
 </html>

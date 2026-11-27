@@ -2,7 +2,7 @@
    달빛 운세 · village.js  (v3 · 마당 놀이 & 효과음)
    마을 홈이 3D 월드(world3d.js)로 바뀌면서, 이 파일은
    - 가벼운 효과음(Web Audio 합성)
-   - 하단 '마당 놀이' 4종(복주머니 · 엽전 점 · 소원등 · 친구 쓰다듬기)의
+   - 하단 '마당 놀이' 4종(복주머니 · 엽전 점 · 소원등 · 연못 동전)의
      결과 카드만 담당한다. (소원등 입력은 app.js의 wishSheet)
    ============================================================ */
 (function (global) {
@@ -22,6 +22,28 @@
     "오늘 마신 물 한 잔이 기운을 맑게 합니다.",
     "고마운 마음을 소리 내어 전해 보세요."
   ];
+
+  /* 연못에 동전을 던졌을 때 — 오늘의 작은 행운 한마디 */
+  const POND_LUCK = [
+    "던진 동전만큼 작은 행운이 오늘 안에 찾아옵니다.",
+    "마음속 소원이 물걸을 타고 퍼지고 있어요.",
+    "오늘은 누군가의 작은 친절이 기쁨으로 돌아오는 날입니다.",
+    "미뤄 둔 일 하나가 술술 풀리며 웃음이 붙습니다.",
+    "따뜻한 말 한마디가 오늘의 복을 데려옵니다.",
+    "고마운 마음을 먼저 전하면 두 배로 들어옵니다.",
+    "서두르지 않으면 오히려 빨리 풀리는 날이에요.",
+    "작은 결정 하나가 좋은 씨앗이 됩니다.",
+    "오늘의 인연이 먼 훗날의 귀인으로 남습니다.",
+    "지친 마음에 잔잔한 숨이 돌아오면 흐름이 바뀝니다."
+  ];
+
+  function playPond() {
+    const line = pick(POND_LUCK);
+    open(head("🪙", "연못에 동전을 던졌어요",
+      "동심원이 번지며 작은 행운이 왔습니다", "shake") +
+      '<p class="vp-line">“' + line + '”</p>', { mid: true });
+    return line;
+  }
 
   const COIN = {
     gil: [
@@ -61,9 +83,10 @@
   /* ---------- 마당 놀이 패널 ---------- */
   function panelEl() { return document.getElementById("yardPanel"); }
 
-  function open(html) {
+  function open(html, opts) {
     const el = panelEl();
     if (!el) return;
+    el.className = "v-play yard-panel" + ((opts && opts.mid) ? " vp-mid" : "");
     el.innerHTML = '<button class="yp-close" type="button" aria-label="닫기">✕</button>' + html;
     el.hidden = false;
     el.scrollTop = 0;
@@ -116,7 +139,7 @@
 
   global.DalbitSound = { ctx, tone };
   global.DalbitVillage = {
-    tone, open, close, playBag, playCoin, playPet,
-    DAMDDAM, COIN, pick
+    tone, open, close, playBag, playCoin, playPet, playPond,
+    DAMDDAM, COIN, POND_LUCK, pick
   };
 })(typeof window !== "undefined" ? window : globalThis);
