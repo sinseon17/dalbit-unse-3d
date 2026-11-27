@@ -361,21 +361,21 @@ box(14, 0.16, 7, new THREE.MeshStandardMaterial({ color: 0x8d3a2e, roughness: 0.
 /* ---------- 석탑 ---------- */
 {
   const g = new THREE.Group();
-  g.position.set(11.6, 0, -3.2);
+  g.position.set(12.6, 0, -4.2);
   const mb = (w, h, d, y, m = stoneMat) => {
     const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
     b.position.y = y; b.castShadow = true; b.receiveShadow = true; g.add(b); return b;
   };
   mb(2.4, 0.4, 2.4, 0.2);
   mb(1.9, 0.34, 1.9, 0.57);
-  let y = 0.74, size = 1.35;
+  let y = 0.74, size = 1.3;
   for (let i = 0; i < 3; i++) {
-    mb(size, 0.62, size, y + 0.31);
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(size * 0.95, 0.42, 4), stoneMat);
+    mb(size, 0.7, size, y + 0.35);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(size * 0.88, 0.34, 4), stoneMat);
     roof.rotation.y = Math.PI / 4;
-    roof.position.y = y + 0.62 + 0.21;
+    roof.position.y = y + 0.7 + 0.17;
     roof.castShadow = true; g.add(roof);
-    y += 1.04; size *= 0.78;
+    y += 1.12; size *= 0.76;
   }
   const finial = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 10), stoneMat);
   finial.position.y = y + 0.16; g.add(finial);
@@ -391,7 +391,7 @@ function stoneLantern(x, z) {
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 1.05, 8), stoneMat), 0.76);
   add(new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.2, 0.52), stoneMat), 1.38);
   const lampBody = add(new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.6, 0.62),
-    new THREE.MeshStandardMaterial({ color: 0xffdda8, emissive: 0xffb05c, emissiveIntensity: 1.0, roughness: 0.6 })), 1.78);
+    new THREE.MeshStandardMaterial({ color: 0xffeccc, emissive: 0xffb060, emissiveIntensity: 0.75, roughness: 0.65 })), 1.78);
   const cap = add(new THREE.Mesh(new THREE.ConeGeometry(0.66, 0.44, 4), stoneMat), 2.28);
   cap.rotation.y = Math.PI / 4;
   add(new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), stoneMat), 2.55);
