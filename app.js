@@ -56,16 +56,16 @@ const groundTex = canvasTex(512, 512, (g, w, h) => {
 }, 12, 12);
 
 const roofTex = canvasTex(256, 256, (g, w, h) => {
-  g.fillStyle = '#39404e'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#232935'; g.fillRect(0, 0, w, h);
   const col = w / 8, row = h / 6;
   for (let y = 0; y < 6; y++) {
     for (let x = 0; x < 8; x++) {
       const px = x * col, py = y * row;
       const grd = g.createLinearGradient(px, 0, px + col, 0);
-      grd.addColorStop(0, '#2b323e');
-      grd.addColorStop(0.30, '#4d5666');
-      grd.addColorStop(0.55, '#586273');
-      grd.addColorStop(1, '#2f3744');
+      grd.addColorStop(0, '#1c222c');
+      grd.addColorStop(0.30, '#4a5464');
+      grd.addColorStop(0.55, '#616c80');
+      grd.addColorStop(1, '#242b36');
       g.fillStyle = grd;
       g.beginPath();
       g.moveTo(px, py + row + 6);
@@ -135,7 +135,7 @@ const sky = new THREE.Mesh(
 scene.add(sky);
 
 const moon = new THREE.Group();
-moon.position.set(-38, 19, -108);
+moon.position.set(-56, 27, -112);
 const moonBody = new THREE.Mesh(
   new THREE.SphereGeometry(9, 32, 24),
   new THREE.MeshBasicMaterial({ color: 0xfff6dd, fog: false })
@@ -145,7 +145,7 @@ const moonHalo = new THREE.Sprite(new THREE.SpriteMaterial({
   map: glowTex, color: 0xffe9b8, transparent: true, opacity: 0.85,
   blending: THREE.AdditiveBlending, depthWrite: false, fog: false
 }));
-moonHalo.scale.set(56, 56, 1);
+moonHalo.scale.set(22, 22, 1);
 moon.add(moonHalo);
 scene.add(moon);
 
@@ -219,7 +219,7 @@ const pathLength = pathCurve.getLength();
 {
   const count = Math.floor(pathLength / 1.05);
   const slabGeo = new THREE.BoxGeometry(1.42, 0.09, 1.05);
-  const slabMat = new THREE.MeshStandardMaterial({ color: 0x6d7382, roughness: 0.95, metalness: 0.02 });
+  const slabMat = new THREE.MeshStandardMaterial({ color: 0x5a6070, roughness: 0.95, metalness: 0.02 });
   const slabs = new THREE.InstancedMesh(slabGeo, slabMat, count);
   slabs.castShadow = false; slabs.receiveShadow = true;
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3();
@@ -325,6 +325,12 @@ box(14, 0.16, 7, new THREE.MeshStandardMaterial({ color: 0x8d3a2e, roughness: 0.
 
   // 처마 끝 살짝 들림
   const eaveMat = new THREE.MeshStandardMaterial({ map: roofTex, color: 0xaab2c2, roughness: 0.8 });
+  // 처마 끝 마감선
+  const fasciaMat = new THREE.MeshStandardMaterial({ color: 0x2f3745, roughness: 0.85 });
+  box(19.2, 0.16, 0.16, fasciaMat, 0, baseY - 0.06, D + 0.44);
+  box(19.2, 0.16, 0.16, fasciaMat, 0, baseY - 0.06, -D - 0.44);
+  box(0.16, 0.16, 12.2, fasciaMat, -W - 0.44, baseY - 0.06, 0);
+  box(0.16, 0.16, 12.2, fasciaMat, W + 0.44, baseY - 0.06, 0);
   const eaveF = box(18.9, 0.2, 0.52, eaveMat, 0, baseY + 0.02, D + 0.16);
   eaveF.rotation.x = -0.13;
   const eaveB = box(18.9, 0.2, 0.52, eaveMat, 0, baseY + 0.02, -D - 0.16);
@@ -474,9 +480,9 @@ function pine(x, z, s = 1) {
 
 {
   const rockMat = new THREE.MeshStandardMaterial({ color: 0x5f6675, roughness: 1, flatShading: true });
-  for (let i = 0; i < 12; i++) {
-    const a = rand(0, TAU), r = rand(5.5, 17);
-    const s = rand(0.22, 0.62);
+  for (let i = 0; i < 9; i++) {
+    const a = rand(0, TAU), r = rand(11, 17);
+    const s = rand(0.16, 0.42);
     const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), rockMat);
     rock.position.set(Math.cos(a) * r, s * 0.5, Math.sin(a) * r);
     rock.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3));
@@ -1099,7 +1105,7 @@ function updateCamera(dt) {
   camera.lookAt(state.focus.x, state.focus.y + 0.15, state.focus.z);
 
   // 시선에 따라 별·달이 살짝 흔들리는 느낌
-  moon.position.x = -38 + Math.sin(state.camYaw * 0.2) * 4;
+  moon.position.x = -56 + Math.sin(state.camYaw * 0.2) * 4;
 }
 
 /* ============================================================
