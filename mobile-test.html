@@ -11,7 +11,11 @@
 </style>
 </head>
 <body>
-  <div class="col"><span class="cap">iPhone 390 × 844</span><iframe src="./index.html?v=7" width="390" height="844"></iframe></div>
-  <div class="col"><span class="cap">Android 360 × 740</span><iframe src="./index.html?v=7" width="360" height="740"></iframe></div>
+  <div class="col"><span class="cap">iPhone 390 × 844</span><iframe width="390" height="844" data-mobile></iframe></div>
+  <div class="col"><span class="cap">Android 360 × 740</span><iframe width="360" height="740" data-mobile></iframe></div>
+<script>
+  const v = new URLSearchParams(location.search).get('ver') || String(Date.now());
+  document.querySelectorAll('iframe[data-mobile]').forEach(f => { f.src = './index.html?v=' + v; });
+</script>
 </body>
 </html>

@@ -135,7 +135,7 @@ const sky = new THREE.Mesh(
 scene.add(sky);
 
 const moon = new THREE.Group();
-moon.position.set(-56, 14, -112);
+moon.position.set(-34, 30, -115);
 const moonBody = new THREE.Mesh(
   new THREE.SphereGeometry(6.5, 32, 24),
   new THREE.MeshBasicMaterial({ color: 0xfff6dd, fog: false })
@@ -1100,7 +1100,7 @@ function updateCamera(dt) {
   state.focus.lerp(focusGoal, damp(dt, 5));
 
   const cp = Math.cos(state.camPitch), sp = Math.sin(state.camPitch);
-  const distScale = camera.aspect < 1 ? 1 + (1 - camera.aspect) * 0.5 : 1;
+  const distScale = camera.aspect < 1 ? 1 + (1 - camera.aspect) * 0.28 : 1;
   const dist = state.camDist * distScale;
   camTargetPos.set(
     state.focus.x + Math.sin(state.camYaw) * cp * dist,
@@ -1112,7 +1112,7 @@ function updateCamera(dt) {
   camera.lookAt(state.focus.x, state.focus.y + 0.15, state.focus.z);
 
   // 시선에 따라 별·달이 살짝 흔들리는 느낌
-  moon.position.x = -56 + Math.sin(state.camYaw * 0.2) * 4;}
+  moon.position.x = -34 + Math.sin(state.camYaw * 0.2) * 4;}
 
 /* ============================================================
    UI
@@ -1276,7 +1276,7 @@ addEventListener('keydown', e => { if (e.key === 'Escape') closeFortune(); });
 function updateProjection() {
   const aspect = innerWidth / innerHeight;
   camera.aspect = aspect;
-  camera.fov = aspect < 1 ? 46 + (1 - aspect) * 28 : 46;
+  camera.fov = aspect < 1 ? 46 + (1 - aspect) * 18 : 46;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 }
