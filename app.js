@@ -638,13 +638,14 @@ function buildCharacter(kind) {
   }
 
   if (isGirl) {
-    // 긴 뒷머리 + 둥근 묶음
+    // 긴 옆머리 + 둥근 묶음
     [-1, 1].forEach(s => {
-      const tail = addMesh(new THREE.CapsuleGeometry(0.13, 0.46, 6, 12), hairMat, head, s * 0.33, 0.10, -0.14);
-      tail.rotation.z = s * 0.16;
+      const tail = addMesh(new THREE.CapsuleGeometry(0.105, 0.4, 6, 12), hairMat, head, s * 0.315, 0.04, -0.12);
+      tail.rotation.z = s * 0.05;
+      tail.rotation.x = 0.05;
     });
-    const backTail = addMesh(new THREE.CapsuleGeometry(0.2, 0.42, 6, 14), hairMat, head, 0, 0.16, -0.32);
-    backTail.scale.z = 0.7;
+    const backTail = addMesh(new THREE.CapsuleGeometry(0.16, 0.3, 6, 14), hairMat, head, 0, 0.12, -0.3);
+    backTail.scale.z = 0.55;
     addMesh(new THREE.SphereGeometry(0.155, 16, 14), hairMat, head, 0, 0.78, -0.2);
     const pin = addMesh(new THREE.CylinderGeometry(0.016, 0.016, 0.44, 6),
       new THREE.MeshStandardMaterial({ color: 0xf6d08a, emissive: 0xf0b45c, emissiveIntensity: 0.8, metalness: 0.6, roughness: 0.4 }),
