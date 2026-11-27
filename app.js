@@ -1297,7 +1297,9 @@ function tick() {
 
   if (!introDone && elapsed > 0.1) {
     introDone = true;
-    document.getElementById('loader').classList.add('hide');
+    const ld = document.getElementById('loader');
+    ld.classList.add('hide');
+    setTimeout(() => { ld.style.display = 'none'; }, 1000);
     setTimeout(() => showToast('달빛 아래 산사 마당에 오신 것을 환영합니다 🏮', 3200), 500);
     setTimeout(hideHint, 9000);
   }

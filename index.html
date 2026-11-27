@@ -96,8 +96,8 @@
   /* ── 운세 모달 ── */
   .modal{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;
     padding:18px;background:rgba(4,7,14,.62);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
-    opacity:0;pointer-events:none;transition:opacity .35s}
-  .modal.open{opacity:1;pointer-events:auto}
+    opacity:0;visibility:hidden;pointer-events:none;transition:opacity .35s,visibility .35s}
+  .modal.open{opacity:1;visibility:visible;pointer-events:auto}
   .sheet{width:100%;max-width:390px;max-height:calc(100dvh - 36px);overflow-y:auto;overscroll-behavior:contain;
     border-radius:22px;padding:18px 16px calc(16px + env(safe-area-inset-bottom));
     background:linear-gradient(180deg,rgba(26,32,52,.97),rgba(11,15,27,.98));
@@ -206,6 +206,6 @@
   </div>
 </div>
 
-<script type="module" src="./app.js?v=13"></script>
+<script type="module" src="./app.js?v=14"></script>
 </body>
 </html>
