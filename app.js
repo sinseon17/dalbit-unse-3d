@@ -1351,6 +1351,9 @@ window.__dalbit = {
   walkTo(x, z) { pickGround(...worldToScreen(x, z)); },
   auto(on) { if (on) startAuto(); else stopAuto(); },
   fortune() { openFortune(); },
+  hold(k, ms = 1200) { keys.add(k.toLowerCase()); setTimeout(() => keys.delete(k.toLowerCase()), ms); },
+  setCam(dist, pitch, yaw) { state.camDist = dist; state.camPitch = pitch; state.camYaw = yaw; },
+  gesture(k, g) { const c = k === 'girl' ? girl : boy; c.gesture = g; c.gestureT = 0; c.idleTimer = 99; },
 };
 function worldToScreen(x, z) {
   const v = new THREE.Vector3(x, 0, z).project(camera);
