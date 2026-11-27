@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#070b18" />
+<meta name="description" content="달빛 운세 — 고요한 산사 마당에서 남녀 캐릭터가 걷는 3D 미리보기" />
+<title>🏮 달빛 운세 · 산사 마당 (3D 미리보기)</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8F%AE%3C/text%3E%3C/svg%3E" />
+<style>
+  :root{
+    --gold:#f6d08a;
+    --gold-deep:#e0a95f;
+    --ink:#0a0f1e;
+    --glass:rgba(12,17,32,.62);
+    --line:rgba(246,208,138,.28);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;margin:0;overflow:hidden;background:#070b18;
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;
+    color:#f2e8d5;user-select:none;-webkit-user-select:none;touch-action:none}
+  #app{position:fixed;inset:0}
+  canvas{display:block;width:100%;height:100%;outline:none}
+
+  /* ── 로딩 ── */
+  #loader{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:18px;background:radial-gradient(circle at 50% 35%,#1a2544 0%,#070b18 70%);z-index:60;transition:opacity .8s ease}
+  #loader.hide{opacity:0;pointer-events:none}
+  #loader .moon{width:74px;height:74px;border-radius:50%;
+    background:radial-gradient(circle at 38% 34%,#fffdf2,#ffe9b8 55%,#e8c88a);
+    box-shadow:0 0 40px 14px rgba(255,229,170,.35),0 0 120px 40px rgba(150,180,255,.18);
+    animation:breathe 3.2s ease-in-out infinite}
+  @keyframes breathe{0%,100%{transform:scale(1);opacity:.95}50%{transform:scale(1.06);opacity:1}}
+  #loader p{margin:0;font-size:14px;letter-spacing:.22em;color:#d9c7a1}
+  #loader small{font-size:11px;color:#7f8aa8;letter-spacing:.1em}
+
+  /* ── 상단 바 ── */
+  .topbar{position:fixed;top:0;left:0;right:0;padding:calc(10px + env(safe-area-inset-top)) 12px 0;
+    display:flex;flex-direction:column;align-items:center;gap:8px;z-index:20;pointer-events:none}
+  .brand{display:flex;align-items:baseline;gap:7px;font-size:14px;letter-spacing:.14em;
+    color:#f7e7c6;text-shadow:0 2px 12px rgba(0,0,0,.7)}
+  .brand b{font-weight:700;letter-spacing:.2em}
+  .brand span{font-size:10px;letter-spacing:.26em;color:rgba(246,208,138,.62)}
+  .seg{display:flex;gap:3px;padding:4px;border-radius:999px;background:var(--glass);
+    border:1px solid var(--line);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    box-shadow:0 8px 26px rgba(0,0,0,.45);pointer-events:auto}
+  .seg button{appearance:none;border:0;background:transparent;color:#cdbf9f;font:inherit;font-size:13px;
+    font-weight:600;letter-spacing:.02em;padding:9px 15px;border-radius:999px;cursor:pointer;
+    transition:background .25s,color .25s,transform .12s;min-height:36px}
+  .seg button:active{transform:scale(.96)}
+  .seg button.on{background:linear-gradient(160deg,#fbe3b0,#e6b169);color:#241708;
+    box-shadow:0 3px 14px rgba(240,180,106,.4),inset 0 1px 0 rgba(255,255,255,.6)}
+
+  /* ── 우측 버튼 ── */
+  .actions{position:fixed;right:12px;bottom:calc(18px + env(safe-area-inset-bottom));
+    display:flex;flex-direction:column;align-items:flex-end;gap:9px;z-index:20}
+  .pill{appearance:none;display:flex;align-items:center;gap:7px;border-radius:999px;
+    padding:11px 16px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;
+    background:var(--glass);border:1px solid var(--line);color:#f0dcb8;
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    box-shadow:0 8px 24px rgba(0,0,0,.42);transition:transform .12s,background .25s;min-height:44px}
+  .pill:active{transform:scale(.96)}
+  .pill .dot{width:7px;height:7px;border-radius:50%;background:#5b6480;box-shadow:0 0 0 0 rgba(255,190,110,.5)}
+  .pill.on{background:linear-gradient(160deg,rgba(120,90,40,.85),rgba(60,45,25,.85));
+    border-color:rgba(255,206,128,.55);color:#ffe8bf}
+  .pill.on .dot{background:#ffc271;box-shadow:0 0 10px 2px rgba(255,183,102,.75);animation:pulse 1.8s infinite}
+  @keyframes pulse{50%{opacity:.45}}
+  .pill.gold{background:linear-gradient(160deg,#ffe6b6,#e7ad62 70%,#d4934b);color:#2a1a07;
+    border-color:rgba(255,238,205,.7);font-weight:800;letter-spacing:.03em;
+    box-shadow:0 10px 30px rgba(226,160,80,.38),inset 0 1px 0 rgba(255,255,255,.65)}
+  .pill.gold .ic{font-size:15px}
+
+  /* ── 스틱 ── */
+  #stick{position:fixed;left:16px;bottom:calc(20px + env(safe-area-inset-bottom));
+    width:112px;height:112px;border-radius:50%;z-index:19;display:none;
+    background:radial-gradient(circle,rgba(20,28,48,.55),rgba(10,14,26,.35));
+    border:1px solid rgba(246,208,138,.22);backdrop-filter:blur(6px);
+    touch-action:none;transition:opacity .3s}
+  #stick.show{display:block}
+  #stick .knob{position:absolute;left:50%;top:50%;width:48px;height:48px;margin:-24px 0 0 -24px;border-radius:50%;
+    background:radial-gradient(circle at 38% 34%,#ffeccb,#d9a865);border:1px solid rgba(255,241,214,.6);
+    box-shadow:0 6px 18px rgba(0,0,0,.5),0 0 22px rgba(240,190,120,.25);
+    transition:transform .08s ease-out;pointer-events:none}
+  #stick .lab{position:absolute;left:0;right:0;bottom:-19px;text-align:center;font-size:10px;
+    letter-spacing:.14em;color:rgba(230,213,180,.5)}
+
+  /* ── 힌트 ── */
+  .hint{position:fixed;left:50%;top:calc(92px + env(safe-area-inset-top));transform:translateX(-50%);
+    z-index:18;font-size:11px;letter-spacing:.02em;color:rgba(233,219,192,.62);
+    background:rgba(8,12,24,.5);border:1px solid rgba(246,208,138,.13);border-radius:999px;
+    padding:7px 14px;backdrop-filter:blur(8px);white-space:nowrap;pointer-events:none;
+    transition:opacity .6s;max-width:90vw;overflow:hidden;text-overflow:ellipsis}
+  .hint b{color:rgba(255,222,168,.9);font-weight:600}
+  .hint.dim{opacity:0}
+
+  /* ── 운세 모달 ── */
+  .modal{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;
+    padding:18px;background:rgba(4,7,14,.62);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
+    opacity:0;pointer-events:none;transition:opacity .35s}
+  .modal.open{opacity:1;pointer-events:auto}
+  .sheet{width:100%;max-width:390px;max-height:calc(100dvh - 36px);overflow-y:auto;overscroll-behavior:contain;
+    border-radius:22px;padding:18px 16px calc(16px + env(safe-area-inset-bottom));
+    background:linear-gradient(180deg,rgba(26,32,52,.97),rgba(11,15,27,.98));
+    border:1px solid rgba(246,208,138,.3);box-shadow:0 26px 70px rgba(0,0,0,.65),inset 0 1px 0 rgba(255,255,255,.06);
+    transform:translateY(16px) scale(.97);transition:transform .38s cubic-bezier(.2,.9,.25,1);touch-action:pan-y}
+  .modal.open .sheet{transform:none}
+  .sheet h2{margin:0;font-size:16px;letter-spacing:.1em;color:#ffe6b8;font-weight:700;text-align:center}
+  .sheet .sub{margin:5px 0 14px;text-align:center;font-size:11px;letter-spacing:.16em;color:rgba(214,199,168,.55)}
+  .zoo{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+  .zoo button{appearance:none;font:inherit;cursor:pointer;border-radius:13px;padding:9px 2px 8px;
+    background:rgba(255,255,255,.045);border:1px solid rgba(246,208,138,.16);color:#e7d9bb;
+    display:flex;flex-direction:column;align-items:center;gap:3px;transition:.2s}
+  .zoo button:active{transform:scale(.95)}
+  .zoo button .e{font-size:21px;line-height:1}
+  .zoo button .n{font-size:11px;letter-spacing:.02em;color:#c9bb9d}
+  .zoo button:hover{border-color:rgba(246,208,138,.5);background:rgba(255,215,150,.09)}
+
+  .card{margin-top:12px;border-radius:18px;padding:20px 18px 18px;position:relative;overflow:hidden;
+    background:linear-gradient(158deg,#fbf1d8,#f0dfb9 55%,#e6cfa2);color:#2a2114;
+    box-shadow:0 16px 40px rgba(0,0,0,.5),inset 0 0 0 1px rgba(255,255,255,.6);display:none}
+  .card.show{display:block;animation:cardIn .55s cubic-bezier(.2,.9,.25,1)}
+  @keyframes cardIn{from{opacity:0;transform:translateY(14px) rotateX(8deg)}to{opacity:1;transform:none}}
+  .card::after{content:"";position:absolute;inset:6px;border:1px solid rgba(120,88,40,.28);border-radius:13px;pointer-events:none}
+  .card .moonmark{position:absolute;right:-16px;top:-18px;width:96px;height:96px;border-radius:50%;
+    background:radial-gradient(circle at 40% 36%,rgba(255,250,230,.95),rgba(246,206,140,.35) 60%,transparent 70%)}
+  .card .zodiac{font-size:33px;line-height:1;filter:drop-shadow(0 3px 5px rgba(120,80,30,.25))}
+  .card .zname{font-size:13px;letter-spacing:.18em;color:#7a5a28;margin-top:6px;font-weight:700}
+  .card .date{font-size:10px;letter-spacing:.14em;color:#9a7c4a;margin-top:2px}
+  .card .line{font-size:16px;line-height:1.65;margin:14px 0 0;font-weight:700;letter-spacing:-.01em;word-break:keep-all}
+  .card .advice{font-size:12px;line-height:1.7;margin:10px 0 0;color:#5b4a30;word-break:keep-all}
+  .card .meta{display:flex;gap:8px;margin-top:15px;padding-top:12px;border-top:1px dashed rgba(120,88,40,.3);font-size:11px;color:#6b562f}
+  .card .meta span{flex:1}
+  .card .meta b{display:block;font-size:12px;color:#3a2c15;margin-top:2px;font-weight:700}
+  .sheet .row{display:flex;gap:8px;margin-top:14px}
+  .sheet .row button{flex:1;appearance:none;font:inherit;font-size:13px;font-weight:700;cursor:pointer;
+    border-radius:12px;padding:12px;min-height:44px;transition:.15s}
+  .sheet .row button:active{transform:scale(.97)}
+  .btn-ghost{background:rgba(255,255,255,.06);border:1px solid rgba(246,208,138,.25);color:#e9d8b6}
+  .btn-primary{background:linear-gradient(160deg,#ffe4b0,#e3a95d);border:1px solid rgba(255,240,210,.6);color:#2a1a07}
+
+  .toast{position:fixed;left:50%;top:calc(132px + env(safe-area-inset-top));transform:translate(-50%,-8px);
+    z-index:30;padding:9px 16px;border-radius:999px;font-size:12px;letter-spacing:.04em;
+    background:rgba(18,24,42,.9);border:1px solid rgba(246,208,138,.3);color:#ffe6b8;
+    opacity:0;transition:.35s;pointer-events:none;white-space:nowrap}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  @media (max-height:560px){
+    .brand{display:none}
+    #stick{width:96px;height:96px}
+  }
+  @media (max-width:360px){
+    .seg button{padding:9px 11px;font-size:12px}
+    .pill{padding:10px 13px;font-size:12px}
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="loader">
+  <div class="moon"></div>
+  <p>달빛을 밝히는 중</p>
+  <small>산사 마당 · 3D 미리보기</small>
+</div>
+
+<div class="topbar">
+  <div class="brand"><b>달빛 운세</b><span>SANSA · 3D PREVIEW</span></div>
+  <div class="seg" id="seg">
+    <button data-mode="boy" class="on">남자</button>
+    <button data-mode="girl">여자</button>
+    <button data-mode="both">둘 함께</button>
+  </div>
+</div>
+
+<div class="actions">
+  <button class="pill" id="strollBtn"><span class="dot"></span><span>자동 산책</span></button>
+  <button class="pill gold" id="fortuneBtn"><span class="ic">🏮</span><span>오늘의 달빛 운세</span></button>
+</div>
+
+<div id="stick"><div class="knob"></div><div class="lab">이동</div></div>
+<div class="hint" id="hint"><b>바닥</b>을 눌러 걸어가기 · <b>드래그</b>로 시점 · <b>WASD</b></div>
+<div class="toast" id="toast"></div>
+
+<div class="modal" id="modal">
+  <div class="sheet" id="sheet">
+    <h2>🏮 오늘의 달빛 운세</h2>
+    <div class="sub" id="modalSub">띠를 고르면 달빛이 한 줄을 건넵니다</div>
+    <div class="zoo" id="zoo"></div>
+    <div class="card" id="card">
+      <div class="moonmark"></div>
+      <div class="zodiac" id="cZodiac">🐭</div>
+      <div class="zname" id="cName">쥐띠</div>
+      <div class="date" id="cDate"></div>
+      <p class="line" id="cLine"></p>
+      <p class="advice" id="cAdvice"></p>
+      <div class="meta">
+        <span>행운의 색<b id="cColor">은빛</b></span>
+        <span>행운의 숫자<b id="cNum">7</b></span>
+        <span>달빛 기운<b id="cPower">★★★☆☆</b></span>
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn-ghost" id="closeBtn">닫기</button>
+      <button class="btn-primary" id="againBtn">다시 뽑기</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
