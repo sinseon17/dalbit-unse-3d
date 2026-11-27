@@ -135,7 +135,7 @@ const sky = new THREE.Mesh(
 scene.add(sky);
 
 const moon = new THREE.Group();
-moon.position.set(-42, 31, -118);
+moon.position.set(-38, 19, -108);
 const moonBody = new THREE.Mesh(
   new THREE.SphereGeometry(9, 32, 24),
   new THREE.MeshBasicMaterial({ color: 0xfff6dd, fog: false })
@@ -145,7 +145,7 @@ const moonHalo = new THREE.Sprite(new THREE.SpriteMaterial({
   map: glowTex, color: 0xffe9b8, transparent: true, opacity: 0.85,
   blending: THREE.AdditiveBlending, depthWrite: false, fog: false
 }));
-moonHalo.scale.set(78, 78, 1);
+moonHalo.scale.set(56, 56, 1);
 moon.add(moonHalo);
 scene.add(moon);
 
@@ -318,7 +318,7 @@ box(14, 0.16, 7, new THREE.MeshStandardMaterial({ color: 0x8d3a2e, roughness: 0.
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geo.computeVertexNormals();
   const roof = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-    map: roofTex, color: 0xa9b2c4, roughness: 0.78, side: THREE.DoubleSide, metalness: 0.06
+    map: roofTex, color: 0x8d95a6, roughness: 0.8, side: THREE.DoubleSide, metalness: 0.06
   }));
   roof.castShadow = true; roof.receiveShadow = true;
   hall.add(roof);
@@ -549,29 +549,29 @@ function buildCharacter(kind) {
 
   /* ── 몸통 ── */
   if (isGirl) {
-    const skirt = addMesh(new THREE.CylinderGeometry(0.34, 0.66, 0.66, 20, 1, true), pantsMat, bob, 0, 0.74, 0);
-    skirt.material.side = THREE.DoubleSide;
-    // 치마 주름
-    for (let i = 0; i < 12; i++) {
-      const a = (i / 12) * TAU;
-      const pleat = addMesh(new THREE.BoxGeometry(0.03, 0.62, 0.03), pantsMat, bob,
-        Math.sin(a) * 0.5, 0.73, Math.cos(a) * 0.5);
-      pleat.rotation.y = a;
-    }
-    addMesh(new THREE.CylinderGeometry(0.36, 0.36, 0.08, 20), accMat, bob, 0, 1.04, 0);
-    const top = addMesh(new THREE.CapsuleGeometry(0.26, 0.18, 6, 16), clothMat, bob, 0, 1.1, 0);
-    top.scale.z = 0.9;
+    const skirtMat = new THREE.MeshStandardMaterial({ color: 0xe28ba3, roughness: 0.9, flatShading: true });
+    addMesh(new THREE.CylinderGeometry(0.33, 0.64, 0.66, 16, 1, false), skirtMat, bob, 0, 0.72, 0);
+    // 허리 띠
+    addMesh(new THREE.CylinderGeometry(0.35, 0.35, 0.075, 18), accMat, bob, 0, 1.045, 0);
+    // 저고리
+    const top = addMesh(new THREE.CapsuleGeometry(0.255, 0.16, 6, 16), clothMat, bob, 0, 1.14, 0);
+    top.scale.z = 0.92;
     // 고름
-    const ribbon = addMesh(new THREE.BoxGeometry(0.1, 0.44, 0.05), accMat, bob, 0.07, 0.95, 0.26);
-    ribbon.rotation.z = 0.18;
+    const ribbon = addMesh(new THREE.BoxGeometry(0.09, 0.42, 0.04), accMat, bob, 0.07, 0.95, 0.27);
+    ribbon.rotation.z = 0.16;
+    // 깃
+    const gCollarL = addMesh(new THREE.BoxGeometry(0.07, 0.2, 0.035), MAT.white, bob, -0.05, 1.2, 0.225);
+    gCollarL.rotation.z = 0.55;
+    const gCollarR = addMesh(new THREE.BoxGeometry(0.07, 0.2, 0.035), MAT.white, bob, 0.05, 1.2, 0.225);
+    gCollarR.rotation.z = -0.55;
   } else {
     const torso = addMesh(new THREE.CapsuleGeometry(0.3, 0.26, 6, 16), clothMat, bob, 0, 0.85, 0);
     torso.scale.set(1, 1, 0.88);
     // 깃 (V자)
-    const collarL = addMesh(new THREE.BoxGeometry(0.075, 0.26, 0.04), MAT.white, bob, -0.065, 1.04, 0.235);
-    collarL.rotation.z = 0.46;
-    const collarR = addMesh(new THREE.BoxGeometry(0.075, 0.26, 0.04), MAT.white, bob, 0.065, 1.04, 0.235);
-    collarR.rotation.z = -0.46;
+    const collarL = addMesh(new THREE.BoxGeometry(0.07, 0.24, 0.035), MAT.white, bob, -0.075, 1.04, 0.235);
+    collarL.rotation.z = 0.38;
+    const collarR = addMesh(new THREE.BoxGeometry(0.07, 0.24, 0.035), MAT.white, bob, 0.075, 1.04, 0.235);
+    collarR.rotation.z = -0.38;
     // 띠
     addMesh(new THREE.CylinderGeometry(0.312, 0.312, 0.1, 16), accMat, bob, 0, 0.76, 0);
     const knot = addMesh(new THREE.SphereGeometry(0.055, 10, 8), accMat, bob, 0, 0.73, 0.28);
@@ -580,7 +580,7 @@ function buildCharacter(kind) {
   /* ── 팔 ── */
   function makeArm(side) {
     const pivot = new THREE.Group();
-    pivot.position.set(side * (isGirl ? 0.33 : 0.35), isGirl ? 1.1 : 1.08, 0);
+    pivot.position.set(side * (isGirl ? 0.34 : 0.35), isGirl ? 1.14 : 1.08, isGirl ? 0.02 : 0);
     bob.add(pivot);
     const sleeve = addMesh(new THREE.CapsuleGeometry(0.095, 0.19, 5, 12), clothMat, pivot, 0, -0.17, 0);
     sleeve.scale.z = 0.92;
@@ -636,10 +636,10 @@ function buildCharacter(kind) {
     });
     const backTail = addMesh(new THREE.CapsuleGeometry(0.2, 0.42, 6, 14), hairMat, head, 0, 0.16, -0.32);
     backTail.scale.z = 0.7;
-    addMesh(new THREE.SphereGeometry(0.185, 16, 14), hairMat, head, 0, 0.76, -0.2);
+    addMesh(new THREE.SphereGeometry(0.155, 16, 14), hairMat, head, 0, 0.78, -0.2);
     const pin = addMesh(new THREE.CylinderGeometry(0.016, 0.016, 0.44, 6),
       new THREE.MeshStandardMaterial({ color: 0xf6d08a, emissive: 0xf0b45c, emissiveIntensity: 0.8, metalness: 0.6, roughness: 0.4 }),
-      head, 0, 0.76, -0.2);
+      head, 0, 0.78, -0.2);
     pin.rotation.z = Math.PI / 2;
     // 앞머리 리본
     const ribbon = addMesh(new THREE.SphereGeometry(0.075, 10, 8), accMat, head, 0.19, 0.66, 0.09);
@@ -683,6 +683,7 @@ function buildCharacter(kind) {
 
   return {
     kind, isGirl, root, bob, head, armL, armR, legL, legR, skull,
+    armOut: isGirl ? 0.44 : 0.16,
     phase: rand(0, TAU), yaw: Math.PI, target: null,
     vel: new THREE.Vector3(), speed: 0, idleTimer: rand(6, 11), gesture: null, gestureT: 0,
     autoT: null, autoDir: 1, pause: 0, baseY: 0,
@@ -705,8 +706,8 @@ function animateCharacter(c, dt, moveAmount) {
   c.legR.rotation.x = -s * 0.72 * walk;
   c.armL.rotation.x = -armSwing;
   c.armR.rotation.x = armSwing;
-  c.armL.rotation.z = 0.16 + 0.02 * Math.sin(c.phase * 0.5);
-  c.armR.rotation.z = -0.16 - 0.02 * Math.sin(c.phase * 0.5);
+  c.armL.rotation.z = c.armOut + 0.02 * Math.sin(c.phase * 0.5);
+  c.armR.rotation.z = -c.armOut - 0.02 * Math.sin(c.phase * 0.5);
 
   // 몸통 흔들림
   const bobY = Math.abs(Math.sin(c.phase)) * 0.055 * walk;
@@ -726,8 +727,8 @@ function animateCharacter(c, dt, moveAmount) {
     } else if (c.gesture === 'pray') {
       const k = Math.sin(Math.min(t / 1.9, 1) * Math.PI);
       const kk = Math.min(t / 0.45, 1) * (1 - clamp((t - 1.5) / 0.6, 0, 1));
-      c.armL.rotation.z = lerp(0.16, 0.98, kk);
-      c.armR.rotation.z = lerp(-0.16, -0.98, kk);
+      c.armL.rotation.z = lerp(c.armOut, 0.98, kk);
+      c.armR.rotation.z = lerp(-c.armOut, -0.98, kk);
       c.armL.rotation.x = lerp(0, -0.62, kk) + Math.sin(t * 2) * 0.02;
       c.armR.rotation.x = lerp(0, -0.62, kk) - Math.sin(t * 2) * 0.02;
       c.head.rotation.x = k * 0.3;
@@ -1098,7 +1099,7 @@ function updateCamera(dt) {
   camera.lookAt(state.focus.x, state.focus.y + 0.15, state.focus.z);
 
   // 시선에 따라 별·달이 살짝 흔들리는 느낌
-  moon.position.x = -42 + Math.sin(state.camYaw * 0.2) * 4;
+  moon.position.x = -38 + Math.sin(state.camYaw * 0.2) * 4;
 }
 
 /* ============================================================
