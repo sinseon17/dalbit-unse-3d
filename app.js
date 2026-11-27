@@ -822,7 +822,11 @@ const knobEl = stickEl.querySelector('.knob');
 function isTouchDevice() {
   return matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window || innerWidth < 820;
 }
-if (isTouchDevice()) stickEl.classList.add('show');
+if (isTouchDevice()) {
+  stickEl.classList.add('show');
+  const h = document.getElementById('hint');
+  h.innerHTML = '<b>바닥</b>을 눌러 걸어가기 · <b>드래그</b>로 시점 · <b>조이스틱</b>으로 이동';
+}
 addEventListener('resize', () => stickEl.classList.toggle('show', isTouchDevice()));
 
 function stickStart(e) {
@@ -1096,10 +1100,12 @@ function updateCamera(dt) {
   state.focus.lerp(focusGoal, damp(dt, 5));
 
   const cp = Math.cos(state.camPitch), sp = Math.sin(state.camPitch);
+  const distScale = camera.aspect < 1 ? 1 + (1 - camera.aspect) * 0.5 : 1;
+  const dist = state.camDist * distScale;
   camTargetPos.set(
-    state.focus.x + Math.sin(state.camYaw) * cp * state.camDist,
-    state.focus.y + sp * state.camDist + 0.6,
-    state.focus.z + Math.cos(state.camYaw) * cp * state.camDist
+    state.focus.x + Math.sin(state.camYaw) * cp * dist,
+    state.focus.y + sp * dist + 0.6,
+    state.focus.z + Math.cos(state.camYaw) * cp * dist
   );
   camTargetPos.y = Math.max(camTargetPos.y, 0.9);
   camera.position.lerp(camTargetPos, damp(dt, 6));
@@ -1267,11 +1273,15 @@ modalEl.addEventListener('click', e => { if (e.target === modalEl) closeFortune(
 addEventListener('keydown', e => { if (e.key === 'Escape') closeFortune(); });
 
 /* ---------- 리사이즈 ---------- */
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
+function updateProjection() {
+  const aspect = innerWidth / innerHeight;
+  camera.aspect = aspect;
+  camera.fov = aspect < 1 ? 46 + (1 - aspect) * 28 : 46;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
-});
+}
+updateProjection();
+addEventListener('resize', updateProjection);
 
 /* ============================================================
    루프
